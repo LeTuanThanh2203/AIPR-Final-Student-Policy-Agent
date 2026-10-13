@@ -169,6 +169,85 @@ async def test_client_lifecycle_and_cleanup(temp_complaints_file):
     assert client.is_connected is False
 
 
+@pytest.mark.anyio
+async def test_client_call_list_student_complaints(temp_complaints_file):
+    """Client gọi tool list_student_complaints để tra cứu danh sách khiếu nại của SV."""
+    async with MCPClientManager() as client:
+        # Nộp 2 đơn cho SV 21120001 và 1 đơn cho SV 21120002
+        await client.call_tool("submit_complaint", {
+            "student_id": "21120001",
+            "category": "TC1",
+            "reason": "Đơn 1 của SV 1",
+        })
+        await client.call_tool("submit_complaint", {
+            "student_id": "21120001",
+            "category": "TC3",
+            "reason": "Đơn 2 của SV 1",
+        })
+        await client.call_tool("submit_complaint", {
+            "student_id": "21120002",
+            "category": "TC2",
+            "reason": "Đơn của SV 2",
+        })
+
+        # Gọi tool list_student_complaints
+        res = await client.call_tool("list_student_complaints", {"student_id": "21120001"})
+        assert res.is_error is False
+        assert isinstance(res.raw_data, list)
+        assert len(res.raw_data) == 2
+        assert all(r["student_id"] == "21120001" for r in res.raw_data)
+
+        # Gọi cho sinh viên không có đơn
+        res_empty = await client.call_tool("list_student_complaints", {"student_id": "21129999"})
+        assert res_empty.is_error is False
+        assert res_empty.raw_data == []
+
+
+@pytest.mark.anyio
+async def test_client_call_tool_validation_error(temp_complaints_file):
+    """Client nhận phản hồi lỗi từ tool một cách an toàn mà không bị crash."""
+    async with MCPClientManager() as client:
+        # Gửi MSSV rỗng
+        res = await client.call_tool("submit_complaint", {
+            "student_id": "",
+            "category": "TC1",
+            "reason": "Lý do",
+        })
+        assert res.is_error is False  # Server xử lý lỗi mềm và trả JSON status: error
+        assert res.raw_data is not None
+        assert res.raw_data["status"] == "error"
+        assert "student_id" in res.raw_data["message"]
+
+
+@pytest.mark.anyio
+async def test_client_auto_connect_on_demand(temp_complaints_file):
+    """Client tự động kết nối nếu người dùng gọi call_tool mà chưa gọi connect()."""
+    client = MCPClientManager()
+    assert client.is_connected is False
+
+    try:
+        # Gọi tool trực tiếp không qua await client.connect()
+        res = await client.call_tool("check_complaint_status", {"complaint_id": "CPL-9999-9999"})
+        assert client.is_connected is True
+        assert res.raw_data["status"] == "not_found"
+    finally:
+        await client.close()
+
+
+@pytest.mark.anyio
+async def test_tool_call_result_str_and_properties():
+    """Kiểm tra tính năng ép kiểu str và thuộc tính của ToolCallResult."""
+    result = ToolCallResult(
+        tool_name="test_tool",
+        is_error=False,
+        content='{"status": "ok"}',
+        raw_data={"status": "ok"},
+    )
+    assert str(result) == '{"status": "ok"}'
+    assert result.is_error is False
+    assert result.raw_data == {"status": "ok"}
+
+
 # ==============================================================================
 # ENTRYPOINT CHO PHÉP CHẠY TRỰC TIẾP QUA PYTHON THUẦN
 # ==============================================================================

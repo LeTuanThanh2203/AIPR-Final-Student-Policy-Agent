@@ -234,6 +234,79 @@ def test_unique_complaint_id_generation(temp_complaints_file):
     assert {r["complaint_id"] for r in records} == {id1, id2, id3}
 
 
+def test_submit_complaint_empty_evidence(temp_complaints_file):
+    """Khi evidence không được truyền, hệ thống lưu mặc định chuỗi rỗng hợp lệ."""
+    res = json.loads(submit_complaint("21120005", "TC2", "Tham gia hiến máu nhưng quên nộp link"))
+    assert res["status"] == "pending_review"
+    cid = res["complaint_id"]
+
+    records = json.loads(temp_complaints_file.read_text(encoding="utf-8"))
+    matching = [r for r in records if r["complaint_id"] == cid]
+    assert len(matching) == 1
+    assert matching[0]["evidence"] == ""
+
+
+def test_check_complaint_case_insensitive(temp_complaints_file):
+    """Hỗ trợ tra cứu mã khiếu nại không phân biệt hoa thường hoặc có khoảng trắng thừa."""
+    res_submit = json.loads(submit_complaint("21120006", "TC3", "Lý do tra cứu"))
+    cid = res_submit["complaint_id"]
+
+    # Tra cứu bằng chữ thường
+    res_lower = json.loads(check_complaint_status(cid.lower()))
+    assert res_lower["complaint_id"] == cid
+
+    # Tra cứu có khoảng trắng
+    res_space = json.loads(check_complaint_status(f"  {cid}  "))
+    assert res_space["complaint_id"] == cid
+
+
+def test_storage_empty_file_and_dict_json(tmp_path: Path, monkeypatch):
+    """Xử lý file rỗng (0 bytes) và file chứa dict thay vì list."""
+    empty_file = tmp_path / "zero_bytes.json"
+    empty_file.write_text("", encoding="utf-8")
+    monkeypatch.setenv("AIPR_COMPLAINTS_FILE", str(empty_file))
+
+    # File 0 bytes phải trả về [] an toàn
+    assert load_complaints() == []
+
+    # File chứa dict thay vì list
+    dict_file = tmp_path / "dict.json"
+    dict_file.write_text('{"error": "not a list"}', encoding="utf-8")
+    monkeypatch.setenv("AIPR_COMPLAINTS_FILE", str(dict_file))
+
+    assert load_complaints() == []
+
+
+def test_list_student_complaints_zero_leakage(temp_complaints_file):
+    """Bảo đảm danh sách trả về tuyệt đối không rò rỉ đơn của sinh viên khác."""
+    submit_complaint("21120010", "TC1", "Đơn sinh viên A")
+    submit_complaint("21120020", "TC2", "Đơn sinh viên B")
+
+    # Sinh viên C chưa có đơn
+    res_c = json.loads(list_student_complaints("21120030"))
+    assert res_c == []
+
+    # Sinh viên A chỉ thấy 1 đơn của chính mình
+    res_a = json.loads(list_student_complaints("21120010"))
+    assert len(res_a) == 1
+    assert res_a[0]["student_id"] == "21120010"
+
+
+def test_submit_accumulates_without_data_loss(temp_complaints_file):
+    """Nhiều lần nộp liên tiếp tích lũy đầy đủ và bảo toàn toàn bộ dữ liệu trên đĩa."""
+    total = 5
+    ids = []
+    for i in range(total):
+        r = json.loads(submit_complaint(f"2112000{i}", f"TC{i+1}", f"Lý do số {i}"))
+        ids.append(r["complaint_id"])
+
+    # Đọc lại file đĩa
+    records = json.loads(temp_complaints_file.read_text(encoding="utf-8"))
+    assert len(records) == total
+    assert [rec["complaint_id"] for rec in records] == ids
+
+
+
 # ==============================================================================
 # ENTRYPOINT CHO PHÉP CHẠY TRỰC TIẾP QUA PYTHON THUẦN
 # ==============================================================================
