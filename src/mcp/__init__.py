@@ -16,6 +16,11 @@ from src.mcp.schemas import (
     CalculateDRLInput,
     ComplaintRecord,
 )
+from src.mcp.client import (
+    MCPClientManager,
+    ToolDefinition,
+    ToolCallResult,
+)
 
 __all__ = [
     "ActivityInput",
@@ -26,4 +31,7 @@ __all__ = [
     "ListComplaintsInput",
     "CalculateDRLInput",
     "ComplaintRecord",
+    "MCPClientManager",
+    "ToolDefinition",
+    "ToolCallResult",
 ]

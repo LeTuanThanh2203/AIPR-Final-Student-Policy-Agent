@@ -20,6 +20,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Tự động thêm thư mục gốc dự án vào sys.path để chạy được standalone subprocess
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 # Tương thích cả mcp 2.x (MCPServer) và mcp 1.x (FastMCP)
 try:
     from mcp.server.mcpserver import MCPServer as FastMCP
@@ -38,7 +43,6 @@ from src.mcp.schemas import (
 mcp = FastMCP("aipr-complaints-server")
 
 # Đường dẫn mặc định tới file complaints.json
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_DATA_FILE = PROJECT_ROOT / "data" / "complaints.json"
 
 
