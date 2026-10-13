@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment Variables & Secrets (CRITICAL: Do not commit keys)
+.env
+.env.local
+.env.*.local
+
+# Testing & Type Checking
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Generated data & indexes (optional)
+data/index/*
+!data/index/.gitkeep
+
+# ====================================================================
+# TẠM THỜI IGNORE ĐỂ CHIA TÁCH COMMIT / PUSH CHO 3 THÀNH VIÊN (GIT HISTORY)
+# (Bỏ comment từng dòng khi đến lượt thành viên commit file tương ứng)
+# ====================================================================
+
+# Thư mục agent & tài liệu học tập
+agent/
+
+# File thực thi & điều phối chính
+src/main.py
+src/orchestrator.py
+src/llm_client.py
+
+# Module RAG (Member A)
+src/rag/doc_model.py
+src/rag/vector_store.py
+src/rag/hybrid_search.py
+src/rag/rag_pipeline.py
+src/rag/document_parser.py
+
+# Module MCP (Member B)
+src/mcp/schemas.py
+src/mcp/server.py
+src/mcp/client.py
+
+# Module Utils & Tests (Member C)
+src/utils/config.py
+src/utils/logger.py
+tests/test_agent.py

@@ -1,0 +1,13 @@
+Dựa vào các đoạn trích quy chế dưới đây, hãy trả lời câu hỏi của người dùng.
+
+Yêu cầu nghiêm ngặt:
+1. Chỉ trả lời dựa trên thông tin có trong ngữ cảnh.
+2. Trích dẫn rõ nguồn [doc_id, Điều, Khoản] cho mọi luận điểm.
+3. Nếu thông tin không có trong ngữ cảnh hoặc không đủ để suy luận, hãy trả lời:
+   "Thông tin này không có trong quy chế điểm rèn luyện được cung cấp."
+
+Ngữ cảnh:
+{context}
+
+Câu hỏi:
+{query}
