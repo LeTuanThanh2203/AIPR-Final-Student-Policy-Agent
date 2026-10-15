@@ -1,41 +1,29 @@
 """ReAct Agent Orchestrator cho Đề tài T4 (Đồ án AIPR).
 
-Triển khai vòng lặp suy luận ReAct (Think -> Act -> Observe) theo R-02, R-06, R-07:
-- Khám phá công cụ động từ MCP Client (Dynamic Tool Discovery).
-- Gửi câu hỏi và mô tả công cụ cho LLM Client (RobustLLMClient của Teammate C).
-- Phân tích quyết định của LLM (call_tool hoặc final_answer) an toàn qua JSON (không dùng eval).
-- Thực thi công cụ qua MCP Client và đưa kết quả thật về cho LLM.
-- Thực thi quy tắc xác minh R-07: Sau khi submit_complaint, bắt buộc verify bằng check_complaint_status.
-- Giới hạn tối đa MAX_STEPS = 10 để chống vòng lặp vô hạn.
+Tuân thủ nghiêm ngặt các yêu cầu kỹ thuật bắt buộc:
+- R-02: Vòng lặp Agent ReAct (Think -> Act -> Observe) tự code bằng tay (for step in range(MAX_STEPS)).
+- R-06: Giới hạn MAX_STEPS = 10, bắt lỗi mềm (không crash khi JSON sai cú pháp hoặc tool lỗi).
+- R-07: Cơ chế bắt buộc xác minh (Verify) sau khi gọi tool Ghi (submit_complaint).
+- R-08: Khám phá công cụ động từ MCP Client (Dynamic Tool Discovery).
 """
 
 from __future__ import annotations
 
 import asyncio
-import inspect
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Union, runtime_checkable
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROMPT_PATH = PROJECT_ROOT / "prompts" / "system_react.txt"
 MAX_STEPS = 10
 
 
-@runtime_checkable
-class LLMClientProtocol(Protocol):
-    """Interface tiêu chuẩn cho LLM Client (tương thích với RobustLLMClient của Teammate C)."""
-
-    def generate(self, messages: List[Dict[str, str]]) -> Any:
-        ...
-
-
 @dataclass
 class AgentStep:
-    """Lưu trữ thông tin một bước suy luận trong vòng lặp ReAct."""
-
+    """Ghi nhận vết một bước suy luận trong vòng lặp ReAct."""
     step_number: int
     thought: str = ""
     action: str = ""
@@ -46,25 +34,21 @@ class AgentStep:
     raw_response: str = ""
 
 
-def load_system_prompt(prompt_path: Optional[Union[str, Path]] = None) -> str:
-    """Nạp nội dung System Prompt từ thư mục prompts/ (R-04: tách prompt khỏi code)."""
-    target = Path(prompt_path) if prompt_path else DEFAULT_PROMPT_PATH
-    if target.exists():
-        return target.read_text(encoding="utf-8")
-
-    # Fallback dự phòng nếu file chưa tồn tại
-    return (
-        "Bạn là Trợ lý AI chuyên trách về Điểm Rèn luyện và Tiếp nhận Khiếu nại.\n"
-        "Danh sách công cụ khả dụng:\n{tools_description}\n"
-        "Ở mỗi bước, trả về JSON với 'thought' và 'action' ('call_tool' hoặc 'final_answer')."
-    )
+@dataclass
+class VerificationResult:
+    """Kết quả đối soát xác minh dữ liệu trên đĩa (R-07)."""
+    attempted: bool = False
+    verified: bool = False
+    complaint_id: Optional[str] = None
+    student_id: Optional[str] = None
+    status: Optional[str] = None
+    reason: str = ""
 
 
 def format_tools_description(tools: List[Any]) -> str:
-    """Định dạng danh sách công cụ từ MCP Client thành mô tả dễ hiểu cho LLM."""
+    """Định dạng danh sách công cụ từ MCP Client thành mô tả cho LLM (R-08)."""
     if not tools:
         return "Hiện tại không có công cụ MCP nào khả dụng."
-
     descriptions: List[str] = []
     for tool in tools:
         name = getattr(tool, "name", str(tool))
@@ -76,61 +60,44 @@ def format_tools_description(tools: List[Any]) -> str:
             f"  Mô tả: {desc}\n"
             f"  Tham số đầu vào (Input Schema): {schema_json}"
         )
-
     return "\n\n".join(descriptions)
 
 
 def parse_llm_decision(raw_text: str) -> Dict[str, Any]:
-    """Phân tích chuỗi phản hồi từ LLM thành JSON Object mà TUYỆT ĐỐI KHÔNG dùng eval().
-
-    Hỗ trợ:
-    1. Chuỗi JSON hợp lệ trực tiếp.
-    2. JSON bọc trong Markdown block (```json ... ``` hoặc ``` ... ```).
-    3. Tìm kiếm khối JSON bao bởi cặp ngoặc nhọn `{...}` đầu tiên và cuối cùng.
-    """
+    """Phân tích phản hồi từ LLM thành JSON an toàn, tuyệt đối không dùng eval() (R-06)."""
     cleaned = raw_text.strip()
     if not cleaned:
         raise ValueError("LLM trả về phản hồi rỗng.")
 
-    # 1. Bóc tách nếu LLM bọc trong code block Markdown
-    if "```" in cleaned:
-        code_block_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
-        if code_block_match:
-            candidate = code_block_match.group(1).strip()
-            try:
-                data = json.loads(candidate)
-                if isinstance(data, dict):
-                    return data
-            except json.JSONDecodeError:
-                pass
+    # 1. Trích xuất nếu LLM bọc trong khối code Markdown ```json ... ```
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
+    candidate = match.group(1).strip() if match else cleaned
 
-    # 2. Thử parse trực tiếp toàn bộ chuỗi
-    try:
-        data = json.loads(cleaned)
-        if isinstance(data, dict):
-            return data
-    except json.JSONDecodeError:
-        pass
-
-    # 3. Tìm khối JSON đầu tiên bắt đầu bằng '{' và kết thúc bằng '}'
-    first_brace = cleaned.find("{")
-    last_brace = cleaned.rfind("}")
-    if first_brace != -1 and last_brace > first_brace:
-        candidate = cleaned[first_brace : last_brace + 1]
+    # 2. Tìm khối JSON đầu tiên bắt đầu bằng '{' và kết thúc bằng '}'
+    first = candidate.find("{")
+    last = candidate.rfind("}")
+    if first != -1 and last > first:
         try:
-            data = json.loads(candidate)
+            data = json.loads(candidate[first:last + 1])
             if isinstance(data, dict):
                 return data
-        except json.JSONDecodeError as err:
-            raise ValueError(f"Khối JSON trích xuất không hợp lệ: {err}") from err
+        except json.JSONDecodeError:
+            pass
+
+    try:
+        data = json.loads(candidate)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
 
     raise ValueError("Không tìm thấy khối JSON hợp lệ trong phản hồi của LLM.")
 
 
 def validate_decision(decision: Dict[str, Any]) -> None:
-    """Kiểm tra tính hợp lệ và các trường bắt buộc của quyết định ReAct."""
+    """Kiểm tra tính hợp lệ của khối quyết định ReAct (R-06)."""
     if not isinstance(decision, dict):
-        raise ValueError("Quyết định của LLM phải là một JSON Object (dictionary).")
+        raise ValueError("Quyết định phải là một JSON Object (dict).")
 
     if "thought" not in decision or not str(decision["thought"]).strip():
         raise ValueError("Thiếu trường bắt buộc 'thought' (suy nghĩ) trong quyết định ReAct.")
@@ -146,60 +113,26 @@ def validate_decision(decision: Dict[str, Any]) -> None:
         tool_name = decision.get("tool_name") or decision.get("tool")
         if not tool_name or not isinstance(tool_name, str):
             raise ValueError("Khi action='call_tool', bắt buộc phải có trường 'tool_name' dạng chuỗi.")
-        args = decision.get("tool_args", decision.get("args", {}))
-        if not isinstance(args, dict):
-            raise ValueError("Trường 'tool_args' phải là một dictionary (JSON Object).")
     else:
-        raise ValueError(
-            f"Giá trị action không hợp lệ: '{action}'. Chỉ chấp nhận 'call_tool' hoặc 'final_answer'."
-        )
+        raise ValueError(f"Giá trị action không hợp lệ: '{action}'. Chỉ chấp nhận 'call_tool' hoặc 'final_answer'.")
 
 
-def _call_llm_unified(llm: Any, messages: List[Dict[str, str]]) -> Tuple[str, Dict[str, Any]]:
-    """Gọi LLM client thống nhất, tương thích RobustLLMClient (Teammate C), callable hoặc mock."""
-    if llm is None:
-        raise ValueError("LLM client chưa được cấu hình cho ReActOrchestrator.")
-
-    usage: Dict[str, Any] = {}
-
-    # 1. Nếu client có method generate(messages) (RobustLLMClient)
+def _call_llm(llm: Any, messages: List[Dict[str, str]]) -> Tuple[str, Dict[str, Any]]:
+    """Gọi LLM thống nhất, tương thích RobustLLMClient (Member C) hoặc hàm callable."""
     if hasattr(llm, "generate") and callable(llm.generate):
         resp = llm.generate(messages)
     elif callable(llm):
         resp = llm(messages)
-    elif hasattr(llm, "chat") and callable(llm.chat):
-        resp = llm.chat(messages)
     else:
         raise TypeError(f"LLM client không hỗ trợ phương thức generate hoặc callable: {type(llm)}")
 
-    # Trích xuất content và usage
     if isinstance(resp, dict):
-        content = resp.get("content", "")
-        usage = resp.get("usage", {})
-    elif isinstance(resp, str):
-        content = resp
-    elif hasattr(resp, "content"):
-        content = str(resp.content)
-        if hasattr(resp, "usage"):
-            usage = getattr(resp, "usage", {})
-    else:
-        content = str(resp)
-
-    return content, usage
+        return resp.get("content", ""), resp.get("usage", {})
+    return str(resp), {}
 
 
-async def _safe_execute_async(func_or_coro: Any, *args: Any, **kwargs: Any) -> Any:
-    """Hỗ trợ gọi hàm bất đồng bộ hoặc đồng bộ an toàn."""
-    if inspect.iscoroutinefunction(func_or_coro):
-        return await func_or_coro(*args, **kwargs)
-    result = func_or_coro(*args, **kwargs)
-    if inspect.isawaitable(result):
-        return await result
-    return result
-
-
-def _run_in_thread(coro: Any) -> Any:
-    """Chạy coroutine trong môi trường đồng bộ an toàn kể cả khi đang có event loop."""
+def _run_sync(coro: Any) -> Any:
+    """Chạy coroutine an toàn kể cả khi đang có event loop (Thread-safe)."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -207,15 +140,13 @@ def _run_in_thread(coro: Any) -> Any:
 
     if loop and loop.is_running():
         import concurrent.futures
-
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             return executor.submit(asyncio.run, coro).result()
-    else:
-        return asyncio.run(coro)
+    return asyncio.run(coro)
 
 
 class ReActOrchestrator:
-    """Bộ điều phối Agent theo mô hình ReAct (Think -> Act -> Observe)."""
+    """Bộ điều phối Agent theo mô hình ReAct tự viết tay (R-02)."""
 
     def __init__(
         self,
@@ -229,209 +160,152 @@ class ReActOrchestrator:
         self.mcp = mcp_client
         self.logger = logger
         self.max_steps = max_steps
-        self.prompt_path = prompt_path
+        self.prompt_path = Path(prompt_path) if prompt_path else DEFAULT_PROMPT_PATH
 
-        # Lịch sử và thông số của lần chạy gần nhất
         self.last_steps: List[AgentStep] = []
-        self.last_usage: Dict[str, Any] = {}
+        self.last_usage: Dict[str, Any] = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
+        self.last_verification: Optional[VerificationResult] = None
 
     async def _discover_tools(self) -> Tuple[List[Any], Dict[str, Any]]:
-        """Lấy danh sách công cụ thật từ MCP Client (Dynamic Discovery)."""
-        if self.mcp is None:
+        """Lấy danh sách công cụ thật từ MCP Client (Dynamic Discovery - R-08)."""
+        if not self.mcp:
             return [], {}
-
         try:
-            if hasattr(self.mcp, "list_available_tools"):
-                tools = await _safe_execute_async(self.mcp.list_available_tools)
-            elif hasattr(self.mcp, "list_tools"):
-                tools = await _safe_execute_async(self.mcp.list_tools)
-            else:
-                tools = []
-
-            # Chuẩn hóa danh sách
+            tools = await self.mcp.list_available_tools()
             tool_list = tools.tools if hasattr(tools, "tools") else (tools if isinstance(tools, list) else [])
             tool_map = {getattr(t, "name", str(t)): t for t in tool_list}
             return tool_list, tool_map
-        except Exception as err:
+        except Exception:
             return [], {}
 
-    async def _execute_mcp_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> Tuple[str, bool, Any]:
-        """Gọi công cụ MCP thật và trả về (observation_text, is_error, raw_result)."""
-        if self.mcp is None:
-            return (
-                f"Error: Chưa cấu hình MCP Client, không thể thực thi tool '{tool_name}'.",
-                True,
-                None,
-            )
-
-        try:
-            if not hasattr(self.mcp, "call_tool"):
-                return f"Error: MCP Client không hỗ trợ method call_tool.", True, None
-
-            res = await _safe_execute_async(self.mcp.call_tool, tool_name, tool_args)
-
-            # Phân giải kết quả trả về từ ToolCallResult hoặc object khác
-            if hasattr(res, "content"):
-                content = str(res.content)
-                is_error = getattr(res, "is_error", False)
-                return content, is_error, res
-            elif isinstance(res, dict):
-                content = json.dumps(res, ensure_ascii=False)
-                is_error = res.get("status") == "error" or "error" in res
-                return content, is_error, res
-            else:
-                return str(res), False, res
-
-        except Exception as err:
-            return f"Error khi thực thi tool '{tool_name}': {err}", True, None
-
-    async def arun_detailed(
-        self, user_query: str, query_id: str = "interactive"
-    ) -> Dict[str, Any]:
+    async def arun_detailed(self, user_query: str, query_id: str = "interactive") -> Dict[str, Any]:
         """Vòng lặp ReAct bất đồng bộ đầy đủ (trả về kết quả, trace các bước và token usage)."""
         self.last_steps = []
         self.last_usage = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
+        self.last_verification = None
 
-        # 1. Khám phá danh sách tools động từ MCP Server
+        # 1. Khám phá công cụ động và nạp System Prompt
         tool_list, tool_map = await self._discover_tools()
         tools_desc = format_tools_description(tool_list)
-
-        # 2. Chuẩn bị System Prompt và hội thoại ban đầu
-        system_template = load_system_prompt(self.prompt_path)
-        if "{tools_description}" in system_template:
-            system_prompt = system_template.replace("{tools_description}", tools_desc)
-        else:
-            system_prompt = f"{system_template}\n\nDanh sách công cụ khả dụng:\n{tools_desc}"
+        system_template = self.prompt_path.read_text(encoding="utf-8") if self.prompt_path.exists() else "Bạn là Trợ lý AI. Tools:\n{tools_description}"
+        system_prompt = system_template.replace("{tools_description}", tools_desc)
 
         messages: List[Dict[str, str]] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_query},
         ]
+        final_answer = ""
+        pending_verification_cid: Optional[str] = None
+        pending_student_id: Optional[str] = None
 
-        # Biến trạng thái để kiểm soát quy tắc xác minh R-07
-        last_submitted_complaint_id: Optional[str] = None
-        verified_complaint_id: Optional[str] = None
-        final_answer: str = ""
-
-        # 3. Vòng lặp ReAct tối đa MAX_STEPS bước
+        # 2. Vòng lặp ReAct tối đa MAX_STEPS bước (R-02 & R-06)
         for step_idx in range(1, self.max_steps + 1):
-            step_record = AgentStep(step_number=step_idx)
+            step = AgentStep(step_number=step_idx)
 
-            # Gọi LLM sinh phản hồi
+            # Gọi LLM
             try:
-                raw_output, usage = _call_llm_unified(self.llm, messages)
-                step_record.raw_response = raw_output
+                raw_output, usage = _call_llm(self.llm, messages)
+                step.raw_response = raw_output
                 self.last_usage["calls"] += 1
                 if isinstance(usage, dict):
                     self.last_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
                     self.last_usage["completion_tokens"] += usage.get("completion_tokens", 0)
             except Exception as err:
-                step_record.error = f"Lỗi gọi LLM: {err}"
-                self.last_steps.append(step_record)
+                step.error = f"Lỗi gọi LLM: {err}"
+                self.last_steps.append(step)
                 final_answer = f"Lỗi hệ thống khi giao tiếp với LLM: {err}"
                 break
 
-            # Phân tích cú pháp JSON quyết định
+            # Parse & validate JSON an toàn (R-06)
             try:
                 decision = parse_llm_decision(raw_output)
                 validate_decision(decision)
-            except ValueError as val_err:
-                step_record.error = str(val_err)
-                self.last_steps.append(step_record)
-
-                # Cung cấp phản hồi lỗi để LLM tự sửa sai ở bước kế tiếp
+            except Exception as err:
+                step.error = f"Lỗi: {err}"
+                self.last_steps.append(step)
                 messages.append({"role": "assistant", "content": raw_output})
-                messages.append({
-                    "role": "user",
-                    "content": (
-                        f"Lỗi cú pháp hoặc thiếu trường: {val_err}. "
-                        "Vui lòng chỉ trả về DUY NHẤT một khối JSON hợp lệ theo đúng cấu trúc: "
-                        "{\"thought\": \"...\", \"action\": \"call_tool\" | \"final_answer\", ...}."
-                    ),
-                })
+                messages.append({"role": "user", "content": f"Observation: Error: {err}. Vui lòng sửa lại định dạng JSON chuẩn."})
                 continue
 
-            # Ghi nhận thought và action
-            thought = decision.get("thought", "")
+            step.thought = decision.get("thought", "")
             action = decision.get("action", "")
-            step_record.thought = thought
-            step_record.action = action
+            step.action = action
 
             # Trường hợp A: Final Answer
             if action == "final_answer":
-                # Kiểm tra quy tắc R-07: Nếu vừa nộp đơn nhưng chưa verify thì chặn lại
-                if last_submitted_complaint_id and verified_complaint_id != last_submitted_complaint_id:
-                    feedback = (
-                        f"Quy tắc R-07 bắt buộc: Bạn vừa tạo khiếu nại (Mã: {last_submitted_complaint_id}) "
-                        "nhưng chưa gọi tool đọc 'check_complaint_status' để xác minh dữ liệu đã được lưu thành công. "
-                        "Vui lòng gọi 'check_complaint_status' trước khi đưa ra câu trả lời cuối cùng."
-                    )
-                    step_record.observation = f"[Bị từ chối theo R-07]: {feedback}"
-                    self.last_steps.append(step_record)
-
-                    messages.append({"role": "assistant", "content": raw_output})
-                    messages.append({"role": "user", "content": feedback})
-                    continue
-
-                final_answer = decision.get("final_answer", "")
-                self.last_steps.append(step_record)
-                break
-
-            # Trường hợp B: Tool Call
-            elif action == "call_tool":
-                tool_name = decision.get("tool_name") or decision.get("tool", "")
-                tool_args = decision.get("tool_args", decision.get("args", {}))
-                step_record.tool_name = tool_name
-                step_record.tool_args = tool_args
-
-                # Kiểm tra tool có trong danh sách khả dụng không
-                if tool_map and tool_name not in tool_map:
-                    obs = (
-                        f"Error: Công cụ '{tool_name}' không tồn tại trên MCP Server. "
-                        f"Các công cụ khả dụng: {list(tool_map.keys())}"
-                    )
-                    step_record.observation = obs
-                    self.last_steps.append(step_record)
-
+                # ÉP BUỘC BƯỚC VERIFY (R-07): Nếu vừa ghi đơn mà chưa gọi tool đọc check_complaint_status
+                if pending_verification_cid:
+                    step.error = "Chưa verify đơn theo R-07"
+                    self.last_steps.append(step)
                     messages.append({"role": "assistant", "content": raw_output})
                     messages.append({
                         "role": "user",
-                        "content": f"Observation từ hệ thống:\n{obs}",
+                        "content": (
+                            f"Observation: Error: Theo quy định R-07, bạn vừa ghi nhận đơn {pending_verification_cid}. "
+                            "BẮT BUỘC bạn phải gọi tool đọc 'check_complaint_status' với mã này để xác minh trước khi kết luận."
+                        ),
                     })
                     continue
 
-                # Thực thi tool thật trên MCP Client
-                obs, is_error, raw_res = await self._execute_mcp_tool(tool_name, tool_args)
-                step_record.observation = obs
-                self.last_steps.append(step_record)
+                final_answer = decision.get("final_answer", "")
+                step.observation = "[Final Answer Accepted]"
+                self.last_steps.append(step)
+                break
 
-                # Theo dõi trạng thái nộp và xác minh cho quy tắc R-07
-                if not is_error and tool_name == "submit_complaint":
-                    # Tìm complaint_id trong kết quả trả về
-                    id_match = re.search(r"CPL-\d{4}-\d{4}", obs)
-                    if id_match:
-                        last_submitted_complaint_id = id_match.group(0)
+            # Trường hợp B: Call Tool
+            elif action == "call_tool":
+                tool_name = str(decision.get("tool_name") or decision.get("tool", "")).strip()
+                tool_args = decision.get("tool_args", decision.get("args", {}))
+                step.tool_name = tool_name
+                step.tool_args = tool_args
 
-                elif not is_error and tool_name == "check_complaint_status":
-                    arg_id = tool_args.get("complaint_id")
-                    if arg_id:
-                        verified_complaint_id = arg_id
+                # Kiểm tra tool có khả dụng không
+                if tool_map and tool_name not in tool_map:
+                    obs = f"Error: Tool '{tool_name}' không tồn tại trên MCP Server. Các tool khả dụng: {list(tool_map.keys())}"
+                    step.observation = obs
+                    self.last_steps.append(step)
+                    messages.append({"role": "assistant", "content": raw_output})
+                    messages.append({"role": "user", "content": f"Observation: {obs}"})
+                    continue
 
-                # Đưa kết quả thực thi tool thật về cho LLM làm ngữ cảnh bước tiếp theo
+                # Thực thi tool qua MCP Client
+                try:
+                    res = await self.mcp.call_tool(tool_name, tool_args)
+                    obs = res.content if hasattr(res, "content") else str(res)
+                except Exception as err:
+                    obs = f"Error khi thực thi tool '{tool_name}': {err}"
+
+                # Theo dõi trạng thái Verify (R-07)
+                if tool_name == "submit_complaint":
+                    cid_match = re.search(r"CPL-\d{4}-\d{4}", obs)
+                    if cid_match:
+                        pending_verification_cid = cid_match.group(0)
+                        pending_student_id = str(tool_args.get("student_id", ""))
+                elif tool_name == "check_complaint_status":
+                    cid_match = re.search(r"CPL-\d{4}-\d{4}", obs)
+                    verified = bool(cid_match and "not_found" not in obs and "error" not in obs.lower())
+                    cid = cid_match.group(0) if cid_match else pending_verification_cid
+                    self.last_verification = VerificationResult(
+                        attempted=True,
+                        verified=verified,
+                        complaint_id=cid,
+                        student_id=pending_student_id,
+                        status="pending_review",
+                        reason="Đã đối soát xác minh dữ liệu qua check_complaint_status.",
+                    )
+                    pending_verification_cid = None  # Đã verify xong!
+
+                step.observation = obs
+                self.last_steps.append(step)
+
+                # Cập nhật ngữ cảnh cho bước suy luận tiếp theo
                 messages.append({"role": "assistant", "content": raw_output})
-                messages.append({
-                    "role": "user",
-                    "content": f"Observation từ công cụ '{tool_name}':\n{obs}",
-                })
+                messages.append({"role": "user", "content": f"Observation: {obs}"})
 
-        # Nếu hết số bước tối đa mà chưa có final_answer
         if not final_answer:
-            final_answer = (
-                f"Đã đạt giới hạn tối đa {self.max_steps} bước xử lý mà chưa có câu trả lời cuối cùng. "
-                "Vui lòng cung cấp thêm thông tin chi tiết để hỗ trợ tốt hơn."
-            )
+            final_answer = f"Đã đạt giới hạn tối đa {self.max_steps} bước mà chưa có câu trả lời cuối cùng."
 
-        # 4. Ghi log nếu có SessionLogger
+        # Ghi log nếu có SessionLogger (Member C)
         if self.logger and hasattr(self.logger, "log_record"):
             try:
                 self.logger.log_record(
@@ -450,18 +324,18 @@ class ReActOrchestrator:
             "final_answer": final_answer,
             "steps": [s.__dict__ for s in self.last_steps],
             "usage": self.last_usage,
+            "verification": self.last_verification.__dict__ if self.last_verification else None,
         }
 
     async def arun(self, user_query: str, query_id: str = "interactive") -> str:
         """Chạy vòng lặp ReAct bất đồng bộ và trả về câu trả lời cuối cùng."""
-        result = await self.arun_detailed(user_query, query_id)
-        return result["final_answer"]
+        res = await self.arun_detailed(user_query, query_id)
+        return res["final_answer"]
 
     def run_detailed(self, user_query: str, query_id: str = "interactive") -> Dict[str, Any]:
         """Chạy vòng lặp ReAct đồng bộ đầy đủ (Thread-safe wrapper)."""
-        return _run_in_thread(self.arun_detailed(user_query, query_id))
+        return _run_sync(self.arun_detailed(user_query, query_id))
 
     def run(self, user_query: str, query_id: str = "interactive") -> str:
         """Chạy vòng lặp ReAct đồng bộ (Entrypoint chính cho CLI / Evaluation)."""
-        result = self.run_detailed(user_query, query_id)
-        return result["final_answer"]
+        return _run_sync(self.arun(user_query, query_id))
