@@ -1,15 +1,15 @@
 # BẢNG KHAI BÁO SỬ DỤNG AI (AI USAGE DECLARATION)
-**Dự án:** Hệ thống Trợ lý Điểm Rèn luyện & Quản lý Khiếu nại (Đề tài T4 - AIPR Final Project)
+**Dự án:** Hệ thống Trợ lý Điểm Rèn luyện & Quản lý Khiếu nại (Đề tài T4 - AIPR Final Project)  
 **Nhóm:** 3 Sinh viên
 
 ---
 
 ## 1. BẢNG TỔNG QUAN THEO THÀNH VIÊN
 
-| STT | Thành viên | Vai trò phụ trách | Công cụ AI | Phạm vi áp dụng |
+| STT | Thành viên | Vai trò phụ trách | Công cụ AI | Phạm vi áp dụng chính |
 | :---: | :--- | :--- | :--- | :--- |
 | 1 | [Họ tên SV 1 - MSSV] | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* |
-| 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Claude & GitHub Copilot** | **Schemas, MCP Server & Bộ kiểm thử tự động (45 tests)** |
+| 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Claude & GitHub Copilot** | **Hỗ trợ cú pháp Typed Schemas, MCP Server stdio & ReAct Orchestrator** |
 | 3 | [Họ tên SV 3 - MSSV] | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* |
 
 ---
@@ -23,50 +23,30 @@
 
 ### 🔵 Thành viên B: Lê Tuấn Thành — Agent & MCP Architect
 
-#### 📌 Hạng mục 1: Định nghĩa Schemas dữ liệu và xác thực đầu vào (`src/mcp/schemas.py`)
-* **Tôi hỏi gì:** Yêu cầu thiết kế các dataclass cho input/output của các MCP tools (`submit_complaint`, `check_complaint_status`, `list_student_complaints`, `calculate_drl`).
-* **AI gợi ý gì:** Đề xuất cài thêm thư viện Pydantic để validate dữ liệu tự động.
-* **Đã làm những gì:**
-  * Từ chối cài thêm Pydantic để giữ code gọn nhẹ, sử dụng thuần Python Standard Library theo bài học W1.
-  * Tự viết hàm `__post_init__` để cắt khoảng trắng (`strip()`), chặn chuỗi rỗng và chặn điểm số âm.
-  * Xây dựng hàm `to_dict()` và `@classmethod from_dict()` để chuyển đổi dữ liệu hai chiều an toàn.
+#### 📌 Hạng mục 1: Khai báo Typed Schemas (`src/mcp/schemas.py`)
+* **Tôi hỏi gì:** Gợi ý cú pháp khai báo `@dataclass` chuẩn Python cho các schema nộp và tra cứu khiếu nại.
+* **AI đã làm gì:** Gợi ý khung dataclass mẫu có type hint và cách xuất dictionary dùng hàm `asdict()`.
+* **Sinh viên tự làm & điều chỉnh:** Tự định nghĩa đúng các trường nghiệp vụ (`student_id`, `category`, `reason`), viết hàm validate dữ liệu rỗng và tinh gọn bỏ các class thừa để giữ code gọn gàng, đúng trọng tâm.
 * **Minh chứng:** [`src/mcp/schemas.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/mcp/schemas.py)
 
 ---
 
-#### 📌 Hạng mục 2: Xây dựng MCP Server lưu khiếu nại an toàn (`src/mcp/server.py`)
-* **Tôi hỏi gì:** Yêu cầu tạo MCP Server có 3 tool quản lý khiếu nại, lưu dữ liệu thật xuống file JSON và giữ sạch kênh stdio.
-* **AI gợi ý gì:** Gợi ý khung cơ bản dùng `json.dump` ghi đè file và quy tắc đặt mã khiếu nại `CPL-YYYY-`.
-* **Đã làm những gì:**
-  * Áp dụng kỹ thuật Atomic Write: ghi ra file tạm `.tmp` rồi đổi tên bằng `os.replace` để chống hỏng file khi gặp sự cố.
-  * Viết logic phát sinh mã đơn tăng dần tự động, đảm bảo không bị trùng ID khi nộp liên tiếp.
-  * Chuyển toàn bộ câu lệnh log debug sang `sys.stderr`, giữ kênh `stdout` sạch hoàn toàn cho gói tin JSON-RPC.
-  * Xử lý ngoại lệ an toàn khi file chưa tồn tại hoặc dữ liệu JSON bị hỏng.
+#### 📌 Hạng mục 2: Xây dựng MCP Server lưu trữ khiếu nại (`src/mcp/server.py`)
+* **Tôi hỏi gì:** Cú pháp đăng ký `@mcp.tool()` và kỹ thuật lưu file JSON an toàn trên tiến trình stdio.
+* **AI đã làm gì:** Gợi ý cấu trúc server FastMCP/MCPServer và kỹ thuật atomic write (ghi file tạm `.tmp` rồi đổi tên).
+* **Sinh viên tự làm & điều chỉnh:** Giới hạn đúng 2 công cụ cốt lõi (`submit_complaint`, `check_complaint_status`), chuyển hướng toàn bộ log sang `sys.stderr` để giữ sạch luồng stdout cho gói tin JSON-RPC, và tự viết logic sinh mã đơn tăng dần `CPL-YYYY-NNNN`.
 * **Minh chứng:** [`src/mcp/server.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/mcp/server.py)
 
 ---
 
-#### 📌 Hạng mục 3: Xây dựng bộ kiểm thử tự động 45 bài test (`tests/`)
-* **Tôi hỏi gì:** Yêu cầu viết unit test toàn diện cho Schemas, Server và Client, đảm bảo không ảnh hưởng file dữ liệu thật.
-* **AI gợi ý gì:** Gợi ý khung test cơ bản với một vài trường hợp mẫu.
-* **Đã làm những gì:**
-  * Xây dựng đầy đủ 45 bài test tự động bao phủ toàn bộ các kịch bản:
-    * `test_mcp_schemas.py` (21 tests): Kiểm tra kiểu dữ liệu, chặn dữ liệu sai/rỗng/âm, chuyển đổi roundtrip.
-    * `test_mcp_server.py` (15 tests): Kiểm tra lưu thật, đọc lại kiểm chứng, atomic write, xử lý file hỏng.
-    * `test_mcp_client.py` (9 tests): Kiểm tra kết nối subprocess qua stdio thật, khám phá tool động, bọc lỗi không để crash app.
-  * Sử dụng fixture đổi biến môi trường `AIPR_COMPLAINTS_FILE` sang file tạm khi chạy test để bảo vệ nguyên vẹn `data/complaints.json`.
-* **Minh chứng:**
-  * [`tests/test_mcp_schemas.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/tests/test_mcp_schemas.py)
-  * [`tests/test_mcp_server.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/tests/test_mcp_server.py)
-  * [`tests/test_mcp_client.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/tests/test_mcp_client.py)
-  * Kết quả: 45/45 tests pass 100%.
-
----
-
-#### ⚠️ Minh bạch về phần việc chưa làm (ReAct Agent Orchestrator)
-* **Thực trạng:** File `src/orchestrator.py` hiện tại là file khung sườn (skeleton stub), chưa có thuật toán ReAct thật.
-* **Mức độ dùng AI:** Mới sử dụng AI thảo luận thiết kế luồng ReAct (`MAX_STEPS = 10`) và quy tắc xác minh sau khi nộp đơn.
-* **Cam kết:** Sẽ tự tay triển khai mã nguồn và viết test ở Phase 5 kế tiếp.
+#### 📌 Hạng mục 3: Vòng lặp ReAct Orchestrator & Xác minh dữ liệu (`src/orchestrator.py`)
+* **Tôi hỏi gì:** Hỗ trợ biểu thức chính quy (regex) bóc tách JSON và khung vòng lặp ReAct (Think - Act - Observe).
+* **AI đã làm gì:** Gợi ý regex trích xuất khối JSON từ phản hồi của LLM và cấu trúc vòng lặp `for step in range(MAX_STEPS)`.
+* **Sinh viên tự làm & điều chỉnh:** 
+  * Tự lập trình logic kiểm soát xác minh: Khi gọi tool nộp khiếu nại, bắt buộc phải gọi tool đọc để đối soát dữ liệu thật trong CSDL trước khi đưa ra câu trả lời cuối.
+  * Tự cài đặt cơ chế xử lý lỗi mềm để phản hồi lại ngữ cảnh cho LLM tự sửa sai nếu sinh JSON lỗi, tránh crash chương trình.
+  * Tinh gọn toàn bộ mã nguồn để dễ theo dõi và thuận tiện giải thích khi bảo vệ trực tiếp.
+* **Minh chứng:** [`src/orchestrator.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/orchestrator.py)
 
 ---
 
@@ -77,6 +57,6 @@
 
 ## 3. CAM KẾT LIÊM CHÍNH HỌC THUẬT
 
-1. Toàn bộ nội dung khai báo trên phản ánh chính xác 100% quá trình làm việc thực tế trong dự án.
-2. Tự đọc hiểu, làm chủ 100% mã nguồn cùng bộ test và sẵn sàng giải thích chi tiết trong buổi vấn đáp.
-3. Sử dụng AI làm công cụ hỗ trợ tư vấn và tăng tốc độ, không để AI thay thế tư duy lập trình.
+1. Toàn bộ nội dung khai báo trên phản ánh trung thực quá trình làm việc trong dự án.
+2. Tự đọc hiểu, làm chủ 100% mã nguồn và sẵn sàng giải thích chi tiết trong buổi vấn đáp.
+3. Sử dụng AI làm công cụ hỗ trợ gợi ý cú pháp và tối ưu tốc độ, hoàn toàn làm chủ tư duy thuật toán và logic nghiệp vụ.

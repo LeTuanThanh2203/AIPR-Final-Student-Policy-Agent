@@ -13,7 +13,7 @@ Danh sách công cụ khả dụng từ MCP Server:
 
 Quy trình suy luận ReAct và Định dạng phản hồi:
 Ở MỖI BƯỚC, bạn BẮT BUỘC chỉ trả về DUY NHẤT một khối JSON hợp lệ theo một trong hai cấu trúc sau (không kèm lời dẫn ngoài JSON):
-
+Tuân thủ cấu trúc của mô hình ReAct
 Cấu trúc 1: Khi cần gọi một công cụ (Tool Call):
 ```json
 {
