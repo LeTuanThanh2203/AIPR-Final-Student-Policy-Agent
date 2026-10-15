@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -21,11 +20,6 @@ from mcp.client.stdio import StdioServerParameters
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_SERVER_SCRIPT = str(PROJECT_ROOT / "src" / "mcp" / "server.py")
-
-
-def _log_stderr(msg: str) -> None:
-    """Ghi log qua sys.stderr để tránh nhiễu kênh truyền stdio."""
-    print(f"[MCP-Client] {msg}", file=sys.stderr)
 
 
 @dataclass
@@ -86,7 +80,6 @@ class MCPClientManager:
             self._client = Client(self.server_params)
             await self._client.__aenter__()
             self._is_connected = True
-            _log_stderr("Kết nối thành công tới MCP Server qua stdio.")
         except FileNotFoundError as err:
             self._is_connected = False
             self._client = None
@@ -108,9 +101,8 @@ class MCPClientManager:
 
         try:
             await self._client.__aexit__(None, None, None)
-            _log_stderr("Đã đóng kết nối MCP Server an toàn.")
-        except Exception as err:
-            _log_stderr(f"Lỗi khi đóng kết nối MCP Server: {err}")
+        except Exception:
+            pass
         finally:
             self._is_connected = False
             self._client = None
@@ -148,10 +140,8 @@ class MCPClientManager:
                 discovered.append(tool_def)
                 self._cached_tools[t.name] = tool_def
 
-            _log_stderr(f"Đã khám phá động {len(discovered)} công cụ từ server: {[t.name for t in discovered]}")
             return discovered
         except Exception as err:
-            _log_stderr(f"Lỗi khi lấy danh sách công cụ từ MCP Server: {err}")
             raise ConnectionError(f"Mất kết nối hoặc lỗi khi khám phá tools: {err}") from err
 
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> ToolCallResult:
@@ -199,7 +189,6 @@ class MCPClientManager:
             )
 
         except Exception as err:
-            _log_stderr(f"Ngoại lệ khi gọi tool '{name}': {err}")
             return ToolCallResult(
                 tool_name=name,
                 is_error=True,
