@@ -44,6 +44,12 @@ class SubmitComplaintInput:
         return asdict(self)
 
     @classmethod
+    def model_json_schema(cls) -> Dict[str, Any]:
+        """Tương thích cú pháp Pydantic (W6 ex0_2_pydantic_schema.py)."""
+        from pydantic import TypeAdapter
+        return TypeAdapter(cls).json_schema()
+
+    @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> SubmitComplaintInput:
         return cls(
             student_id=data.get("student_id", ""),
@@ -69,6 +75,12 @@ class SubmitComplaintOutput:
         return asdict(self)
 
     @classmethod
+    def model_json_schema(cls) -> Dict[str, Any]:
+        """Tương thích cú pháp Pydantic (W6 ex0_2_pydantic_schema.py)."""
+        from pydantic import TypeAdapter
+        return TypeAdapter(cls).json_schema()
+
+    @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> SubmitComplaintOutput:
         return cls(
             complaint_id=data.get("complaint_id", ""),
@@ -88,6 +100,12 @@ class CheckComplaintInput:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def model_json_schema(cls) -> Dict[str, Any]:
+        """Tương thích cú pháp Pydantic (W6 ex0_2_pydantic_schema.py)."""
+        from pydantic import TypeAdapter
+        return TypeAdapter(cls).json_schema()
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> CheckComplaintInput:
@@ -118,6 +136,12 @@ class ComplaintRecord:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def model_json_schema(cls) -> Dict[str, Any]:
+        """Tương thích cú pháp Pydantic (W6 ex0_2_pydantic_schema.py)."""
+        from pydantic import TypeAdapter
+        return TypeAdapter(cls).json_schema()
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> ComplaintRecord:
