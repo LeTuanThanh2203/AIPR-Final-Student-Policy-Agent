@@ -3,16 +3,17 @@
 from __future__ import annotations
 import json
 import re
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
-
+import sys
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent.parent))
 from src.rag.doc_model import DocumentChunk
 
 
 def parse_and_chunk_documents(
-    source_file: str = "HTRL.txt",
+    source_file: str = "data/raw/HTRL.txt",
     output_path: str = "data/processed/chunks.json",
 ) -> List[DocumentChunk]:
     """
