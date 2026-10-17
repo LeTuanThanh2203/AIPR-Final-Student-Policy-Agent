@@ -9,9 +9,14 @@ Cung cấp kết nối stdio tới MCP Server và khám phá công cụ động 
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Tự động gỡ bỏ thư mục 'src' khỏi sys.path để không che khuất thư viện 'mcp' chính thức (R-08)
+_src_dir = Path(__file__).resolve().parent.parent
+sys.path = [p for p in sys.path if Path(p).resolve() != _src_dir and p != "src"]
 
 from mcp import Client
 from mcp.client.stdio import StdioServerParameters
