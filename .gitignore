@@ -72,7 +72,7 @@ src/llm_client.py
 src/rag/doc_model.py
 src/rag/vector_store.py
 src/rag/hybrid_search.py
-src/rag/rag_pipeline.py
+# src/rag/rag_pipeline.py
 src/rag/document_parser.py
 
 # Module MCP (Member B)
