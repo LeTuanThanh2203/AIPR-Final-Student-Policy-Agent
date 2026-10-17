@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from typing import Any, Dict, List, Optional
@@ -64,6 +65,28 @@ class RobustLLMClient:
                     },
                 }
             except Exception as e:
+                # Bắt lỗi đặc biệt của Groq khi model (như openai/gpt-oss-20b) tự động kích hoạt tool_use_failed
+                err_body = getattr(e, "body", {})
+                if isinstance(err_body, dict):
+                    err_info = err_body.get("error", {})
+                    if err_info.get("code") == "tool_use_failed" and "failed_generation" in err_info:
+                        try:
+                            tool_data = json.loads(err_info["failed_generation"])
+                            tool_name = str(tool_data.get("name") or "").replace("tool_", "").strip()
+                            tool_args = tool_data.get("arguments") or {}
+                            react_payload = {
+                                "thought": f"Cần gọi công cụ {tool_name} để tra cứu",
+                                "action": "call_tool",
+                                "tool_name": tool_name,
+                                "tool_args": tool_args if isinstance(tool_args, dict) else {"query": str(tool_args)},
+                            }
+                            return {
+                                "content": json.dumps(react_payload, ensure_ascii=False),
+                                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                            }
+                        except Exception:
+                            pass
+
                 # Nếu đã thử đến lần cuối cùng mà vẫn lỗi thì ném exception ra ngoài
                 if attempt == self.max_retries - 1:
                     raise e
