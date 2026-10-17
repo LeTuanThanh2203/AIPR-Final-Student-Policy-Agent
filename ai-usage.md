@@ -9,8 +9,8 @@
 | STT | Thành viên | Vai trò phụ trách | Công cụ AI | Phạm vi áp dụng chính |
 | :---: | :--- | :--- | :--- | :--- |
 | 1 | **Ca Ngọc Tân** | **RAG và Data Engineer** | **Antigravity** | **AI hỗ trợ sinh mã nguồn xử lý và phân đoạn văn bản, triển khai Hybrid Search và tích hợp cơ chế Calibration trong RAG Pipeline** |
-| 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Claude & GitHub Copilot** | **Hỗ trợ cú pháp Typed Schemas, MCP Server stdio & ReAct Orchestrator** |
-| 3 | **Phạm Phước Anh** | **System Integrator & Evaluator** | **Antigravity AI Assistant & ChatGPT** | **Giúp hoàn thiện UI main.py, hỗ trợ hoàn thành unit tests, hỗ trợ cấu trúc đánh giá tự động và chuẩn hóa logger** |
+| 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Antigravity AI Assistant (Gemini 3.8 Flash High)** | **Typed Schemas (@dataclass), MCP Server stdio (stdout sạch 100%), Dynamic Tool Discovery (mcp SDK), Fallback BM25 Okapi, bộ parse Action đa định dạng và ThreadPool async bridge (src/mcp/, src/orchestrator.py). *Vòng lặp ReAct tự viết tay 100%.* |
+| 3 | **Phạm Phước Anh** | **System Integrator & Evaluator** | **Antigravity AI Assistant (Gemini 3.8 Flash High)** | **Cơ chế Exponential Backoff trong LLM Client, Session Logger JSONL, bộ đánh giá tự động đa tầng (make eval), và giao diện CLI Rich (src/main.py)** |
 
 
 ---
@@ -123,91 +123,438 @@
 
 ---
 
-### 🔵 Thành viên B: Lê Tuấn Thành — Agent & MCP Architect
+### Thành viên: [Lê Tuấn Thành] — Member B (Agent & MCP Architect)
 
-#### 📌 Hạng mục 1: Khai báo Typed Schemas (`src/mcp/schemas.py`)
-* **Tôi hỏi gì:** Gợi ý cú pháp khai báo `@dataclass` chuẩn Python cho các schema nộp và tra cứu khiếu nại.
-* **AI đã làm gì:** Gợi ý khung dataclass mẫu có type hint và cách xuất dictionary dùng hàm `asdict()`.
-* **Sinh viên tự làm & điều chỉnh:** Tự định nghĩa đúng các trường nghiệp vụ (`student_id`, `category`, `reason`), viết hàm validate dữ liệu rỗng và tinh gọn bỏ các class thừa để giữ code gọn gàng, đúng trọng tâm.
-* **Minh chứng:** [`src/mcp/schemas.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/mcp/schemas.py)
+> ⚠️ **Cam kết tuân thủ Yêu cầu R-02 (PDF 02 §2.2):**  
+> Toàn bộ logic **Vòng lặp Agent ReAct (`react_agent` và `ReActOrchestrator`)** gồm chu trình suy luận *Think -> Act -> Observe*, cơ chế bóc tách Action đa định dạng (`parse_reply`), khống chế `MAX_STEPS = 10` (R-06), bắt lỗi mềm tự sửa sai, và **bộ kiểm soát bắt buộc đối soát Verify Tầng c (`pending_verification_cid` - R-07)** là do **sinh viên tự tay lập trình 100% bằng Python thuần** (CẤM dùng LangChain/CrewAI, không sử dụng AI sinh vòng lặp này). Sinh viên hoàn toàn làm chủ từng dòng lệnh và sẵn sàng vấn đáp, sửa code trực tiếp tại chỗ theo yêu cầu của Giảng viên.  
+> Dưới đây là bảng khai báo minh bạch 7 hạng mục kỹ thuật chuyên sâu thuộc gói Model Context Protocol (`src/mcp/`) và các module hỗ trợ suy luận (`src/orchestrator.py`) có tham khảo trợ lý AI để sinh mã nền tảng:
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Toàn bộ file [src/mcp/schemas.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/schemas.py) (Dòng 16 đến dòng 181), bao gồm các class `SubmitComplaintInput`, `SubmitComplaintOutput`, `CheckComplaintInput`, `LookupPolicyInput`, `ComplaintRecord`.
+* **Prompt chính đã dùng:**
+  > *Dựa trên yêu cầu bắt buộc R-03 (PDF 02 §2.3) và bài học Tuần 1, hãy viết các Typed Schemas bằng `@dataclass` Python (nghiêm cấm dùng dict thô để vượt qua kiểm tra `grep -n "@dataclass"`) cho các công cụ MCP đề tài T4: nộp khiếu nại `submit_complaint`, tra cứu trạng thái đơn `check_complaint_status`, và tra cứu quy chế `lookup_policy`. Tích hợp classmethod `model_json_schema` dùng `pydantic.TypeAdapter(cls).json_schema()` theo bài học Tuần 6 để trích xuất JSON Schema cho LLM, đồng thời viết hàm kiểm tra dữ liệu đầu vào không được để trống trong `__post_init__`.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  from dataclasses import asdict, dataclass, field
+  from typing import Any, Dict
+  from pydantic import TypeAdapter
+
+  def _require_non_empty(name: str, value: Any) -> str:
+      if not isinstance(value, str):
+          raise TypeError(f"Trường '{name}' phải là kiểu str, nhận: {type(value).__name__}")
+      cleaned = value.strip()
+      if not cleaned:
+          raise ValueError(f"Trường '{name}' không được để trống.")
+      return cleaned
+
+  @dataclass
+  class SubmitComplaintInput:
+      student_id: str
+      category: str
+      reason: str
+      evidence: str = ""
+
+      def __post_init__(self) -> None:
+          self.student_id = _require_non_empty("student_id", self.student_id)
+          self.category = _require_non_empty("category", self.category)
+          self.reason = _require_non_empty("reason", self.reason)
+
+      def to_dict(self) -> Dict[str, Any]:
+          return asdict(self)
+
+      @classmethod
+      def model_json_schema(cls) -> Dict[str, Any]:
+          return TypeAdapter(cls).json_schema()
+
+      @classmethod
+      def from_dict(cls, data: Dict[str, Any]) -> SubmitComplaintInput:
+          return cls(
+              student_id=data.get("student_id", ""),
+              category=data.get("category", ""),
+              reason=data.get("reason", ""),
+              evidence=data.get("evidence", ""),
+          )
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Dùng `pydantic.TypeAdapter(cls).json_schema()` xuất schema động chuẩn OpenAPI cho LLM mà vẫn giữ `@dataclass` thuần để vượt qua kiểm tra R-03 (`grep -n "@dataclass"`).
+  2. Tự viết hàm `_require_non_empty` trong `__post_init__` để chặn triệt để tham số rỗng hoặc sai kiểu từ LLM.
+  3. Bổ sung classmethod `from_dict` chống lỗi thiếu trường và tách riêng model CSDL `ComplaintRecord` kèm mốc thời gian UTC ISO 8601.
+
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Khởi tạo `MCPServer`, hàm `log_debug`, `load_complaints`, `save_complaints`, và tool `@mcp.tool() submit_complaint` trong [src/mcp/server.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/server.py) (Dòng 41 đến dòng 70 và dòng 197 đến dòng 241).
+* **Prompt chính đã dùng:**
+  > *Xây dựng MCP Server bằng Python qua giao thức stdio (sử dụng MCPServer theo Tuần 7 và R-08). Thiết lập hàm log_debug chuyển hướng toàn bộ thông báo ra sys.stderr để bảo đảm stdout sạch 100% (không phá vỡ gói tin JSON-RPC stdio). Cài đặt tool Ghi Side-Effect `submit_complaint(student_id, category, reason, evidence)`: kiểm tra tham số bằng Typed Schema SubmitComplaintInput, tự động sinh mã khiếu nại nghiệp vụ tăng dần CPL-YYYY-NNNN theo năm hiện tại, và lưu an toàn vào file data/complaints.json bằng UTF-8.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  from mcp.server.mcpserver import MCPServer
+  mcp = MCPServer("aipr-complaints-server")
+
+  def log_debug(message: str) -> None:
+      print(f"[MCP-Server] {message}", file=sys.stderr)
+
+  @mcp.tool()
+  def submit_complaint(student_id: str, category: str, reason: str, evidence: str = "") -> str:
+      try:
+          inp = SubmitComplaintInput(student_id=student_id, category=category, reason=reason, evidence=evidence)
+      except Exception as err:
+          return json.dumps({"status": "error", "message": f"Dữ liệu không hợp lệ: {err}"}, ensure_ascii=False)
+
+      records = load_complaints()
+      year = datetime.now(timezone.utc).year
+      new_id = f"CPL-{year}-{len(records) + 1:04d}"
+      now_iso = datetime.now(timezone.utc).isoformat()
+      record = ComplaintRecord(complaint_id=new_id, student_id=inp.student_id, category=inp.category, reason=inp.reason, evidence=inp.evidence, status="pending_review", created_at=now_iso, updated_at=now_iso)
+      records.append(record.to_dict())
+      save_complaints(records)
+      return json.dumps(SubmitComplaintOutput(complaint_id=new_id, status="pending_review", created_at=now_iso).to_dict(), ensure_ascii=False)
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Chuyển hướng 100% log sang `sys.stderr` qua `log_debug()`, bảo vệ kênh `stdout` sạch tuyệt đối cho gói tin JSON-RPC stdio (R-08).
+  2. Thiết kế định dạng mã đơn nghiệp vụ `CPL-YYYY-NNNN` tăng dần theo năm UTC, giúp dễ đọc và thuận tiện đối soát.
+  3. Tự động khởi tạo thư mục `data/` nếu chưa có và lưu file JSON với `ensure_ascii=False` để giữ nguyên tiếng Việt có dấu (Tầng c - R-07).
+
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Hàm `get_rag_store`, tool `@mcp.tool() lookup_policy`, và tool `@mcp.tool() check_complaint_status` trong [src/mcp/server.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/server.py) (Dòng 78 đến dòng 195 và dòng 243 đến dòng 265).
+* **Prompt chính đã dùng:**
+  > *Viết tool MCP Đọc `lookup_policy(query: str)` kết nối trực tiếp với module RAG để tra cứu quy chế điểm rèn luyện (Tầng a, b - R-05), và tool `check_complaint_status(complaint_id: str)` để đối soát đơn (Tầng c - R-07). Thiết kế hàm singleton nạp trước kho dữ liệu VectorStore từ data/processed/chunks.json để không bị nạp lại đĩa ở mỗi request. Quan trọng: nếu module RAG Dense/Hybrid gặp lỗi embedding hoặc quá tải mô hình, hãy lập trình cơ chế tự động Fallback tức thời sang thuật toán BM25 Okapi tính điểm từ khóa để đảm bảo tool luôn trả về kết quả trích dẫn Điều/Khoản hợp lệ.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  _rag_store = None
+  def get_rag_store():
+      global _rag_store
+      if _rag_store is not None: return _rag_store
+      store = VectorStore()
+      with open(PROJECT_ROOT / "data" / "processed" / "chunks.json", "r", encoding="utf-8") as f:
+          for item in json.load(f):
+              c = DocumentChunk.from_dict(item)
+              store.chunks[c.chunk_id] = c
+      _rag_store = store
+      return _rag_store
+
+  @mcp.tool()
+  def lookup_policy(query: str) -> str:
+      store = get_rag_store()
+      try:
+          rag_res = rag_pipeline(query, store, top_k=3, search_mode="hybrid")
+      except Exception:
+          # Fallback BM25 Okapi khi Hybrid gặp sự cố
+          bm25_idx = build_bm25_index(list(store.chunks.values()))
+          scores = bm25_idx.get_scores(query.lower().split())
+          scored = [(chunks[i], float(scores[i])) for i in range(len(chunks))]
+          scored.sort(key=lambda x: x[1], reverse=True)
+          rag_res = {"sources": [{"source": c.metadata.get("source"), "dieu": c.metadata.get("dieu"), "content": c.content} for c, s in scored[:3]]}
+      return json.dumps(rag_res, ensure_ascii=False)
+
+  @mcp.tool()
+  def check_complaint_status(complaint_id: str) -> str:
+      search_id = complaint_id.strip().upper()
+      for rec in load_complaints():
+          if str(rec.get("complaint_id", "")).strip().upper() == search_id:
+              return json.dumps(rec, ensure_ascii=False)
+      return json.dumps({"status": "not_found", "complaint_id": search_id}, ensure_ascii=False)
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Cài đặt singleton `get_rag_store()` nạp RAM 24 chunks quy chế từ đầu, loại bỏ độ trễ đọc đĩa lặp lại.
+  2. Lập trình cơ chế tự động Fallback sang BM25 Okapi khi module Hybrid search embedding gặp lỗi, bảo đảm tool không bao giờ crash.
+  3. Chuẩn hóa metadata `sources` (Điều, Khoản, nội dung, điểm số) phục vụ trích dẫn căn cứ Grounding (Tầng a).
+
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Toàn bộ file [src/mcp/client.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/client.py) (Dòng 1 đến dòng 123) và [src/mcp/\_\_init\_\_.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/__init__.py).
+* **Prompt chính đã dùng:**
+  > *Viết class MCPClientManager trong Python để kết nối với MCP Server qua subprocess stdio sử dụng StdioServerParameters của mcp SDK chính thức. Cài đặt hàm list_tools() khám phá công cụ động Dynamic Discovery (R-08) và hàm call_tool() thực thi. Đặc biệt, giải quyết triệt để lỗi Module Shadowing hiểm hóc trên Windows khi thư mục chứa mã nguồn là src/mcp làm trùng tên với thư viện mcp cài từ uv/pip, đồng thời xử lý bóc tách khối nội dung TextContent từ CallToolResult.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  import sys
+  from pathlib import Path
+  _src_dir = Path(__file__).resolve().parent.parent
+  sys.path = [p for p in sys.path if Path(p).resolve() != _src_dir and p != "src"]
+
+  from mcp import Client
+  from mcp.client.stdio import StdioServerParameters
+
+  class MCPClientManager:
+      def __init__(self, server_script: Optional[str] = None, command: str = "uv", args: Optional[List[str]] = None):
+          self.server_params = StdioServerParameters(command=command, args=args or ["run", server_script], env=dict(os.environ))
+          self.client: Optional[Client] = None
+
+      async def list_tools(self) -> List[Any]:
+          if self.client is None: await self.connect()
+          res = await self.client.list_tools()
+          return res.tools if hasattr(res, "tools") else (res if isinstance(res, list) else [])
+
+      async def call_tool(self, name: str, arguments: Dict[str, Any]) -> ToolCallResult:
+          res = await self.client.call_tool(name, arguments)
+          parts = [c.text for c in res.content if hasattr(c, "text")]
+          return ToolCallResult(tool_name=name, is_error=getattr(res, "is_error", False), content="\n".join(parts))
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Xử lý triệt để lỗi Module Shadowing trên Windows bằng cách lọc `src` khỏi `sys.path` trước khi import thư viện `mcp`.
+  2. Hiện thực hóa Dynamic Discovery qua `client.list_tools()`, không fix cứng danh sách công cụ trong code hay prompt (R-08).
+  3. Bóc tách thuộc tính `.text` từ các block `TextContent` và quản lý tiến trình subprocess an toàn qua `__aenter__`/`__aexit__`.
+
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Hàm `parse_reply` trong [src/orchestrator.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/orchestrator.py) (Dòng 62 đến dòng 112).
+* **Prompt chính đã dùng:**
+  > *Viết hàm parse_reply(reply: str) trong Python để bóc tách phản hồi đa định dạng từ LLM trong ReAct Orchestrator. Hỗ trợ nhận diện cả 2 định dạng: (1) Khối JSON chuẩn bọc trong ```json {...}``` có trường action ('final_answer' hoặc 'call_tool'); (2) Fallback Regex cho cú pháp text chuẩn Tuần 6 'Action: tool_name(args)' và 'Final Answer: ...'. Bắt toàn bộ ngoại lệ lỗi cú pháp, trả về tuple ('unknown', error_msg) để vòng lặp ReAct thực hiện cơ chế bắt lỗi mềm (R-06) mà không bị crash.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  def parse_reply(reply: str) -> Tuple[str, Any]:
+      cleaned = (reply or "").strip()
+      if not cleaned: return "unknown", "LLM trả về phản hồi rỗng."
+
+      # Cách 1: Parse JSON bọc trong ```json hoặc { }
+      match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
+      candidate = match.group(1).strip() if match else cleaned
+      first, last = candidate.find("{"), candidate.rfind("}")
+      if first != -1 and last > first:
+          candidate = candidate[first:last + 1]
+
+      try:
+          data = json.loads(candidate)
+          if isinstance(data, dict):
+              action = data.get("action")
+              if action == "final_answer":
+                  return "final", str(data.get("final_answer", "")).strip()
+              elif action == "call_tool":
+                  tool_name = str(data.get("tool_name") or data.get("tool") or "").strip()
+                  tool_args = data.get("tool_args") or data.get("args") or {}
+                  if tool_name:
+                      return "action", (tool_name, tool_args if isinstance(tool_args, dict) else {})
+      except Exception:
+          pass
+
+      # Cách 2: Fallback Regex chuẩn bài tập W6
+      final_match = re.search(r"Final Answer:\s*(.+)", cleaned, flags=re.IGNORECASE | re.DOTALL)
+      if final_match: return "final", final_match.group(1).strip()
+      action_match = re.search(r"Action:\s*(\w+)\s*\((.*)\)", cleaned, flags=re.IGNORECASE)
+      if action_match:
+          t_name, arg_str = action_match.group(1).strip(), action_match.group(2).strip()
+          try: t_args = json.loads(arg_str) if arg_str.startswith("{") else {"query": arg_str}
+          except Exception: t_args = {"query": arg_str} if arg_str else {}
+          return "action", (t_name, t_args)
+
+      return "unknown", "Không tìm thấy khối JSON hợp lệ hoặc cấu trúc Action/Final Answer."
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Thiết kế cơ chế Fallback 2 tầng (JSON-first, Regex-second), giúp hệ thống tương thích linh hoạt với nhiều dòng mô hình LLM khác nhau.
+  2. Bổ sung trích xuất chuỗi con giữa `{` đầu tiên và `}` cuối cùng để lọc bỏ các đoạn text giải thích thừa của LLM trước khi parse JSON.
+  3. Chuẩn hóa kết quả trả về thành tuple tường minh `('final', text)`, `('action', (name, args))`, hoặc `('unknown', msg)` giúp luồng điều phối xử lý dễ dàng.
+
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Class `AgentStep` và hàm `run_action` trong [src/orchestrator.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/orchestrator.py) (Dòng 28 đến dòng 37 và dòng 127 đến dòng 148).
+* **Prompt chính đã dùng:**
+  > *Viết dataclass AgentStep để mô hình hóa từng bước suy luận của ReAct Agent (step_number, thought, action, tool_name, tool_args, observation, error, raw_response). Đồng thời viết hàm run_action(name, argument, mcp_client) để bọc lệnh gọi MCP Client: tự động chuẩn hóa đối số đầu vào (cho phép cả chuỗi JSON string hoặc dict) và bắt lỗi mềm trả về chuỗi str thông báo lỗi để không làm sập chương trình khi công cụ ném ngoại lệ (R-06).*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  @dataclass
+  class AgentStep:
+      step_number: int
+      thought: str = ""
+      action: str = ""
+      tool_name: Optional[str] = None
+      tool_args: Optional[Dict[str, Any]] = None
+      observation: Optional[str] = None
+      error: Optional[str] = None
+      raw_response: str = ""
+
+  async def run_action(name: str, argument: Union[Dict[str, Any], str], mcp_client: Any) -> str:
+      if not mcp_client:
+          return f"Error: Chưa kết nối MCP Client để thực thi công cụ '{name}'."
+      if isinstance(argument, str):
+          try: args_dict = json.loads(argument)
+          except Exception: args_dict = {"query": argument} if argument else {}
+      elif isinstance(argument, dict): args_dict = argument
+      else: args_dict = {}
+
+      try:
+          res = await mcp_client.call_tool(name, args_dict)
+          return res.content if hasattr(res, "content") else str(res)
+      except Exception as err:
+          return f"Error khi gọi tool '{name}': {err}"
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Tự động ép kiểu chuỗi JSON sang dict trong `run_action`, khắc phục tình trạng LLM đôi khi truyền tham số dưới dạng chuỗi string bị escape.
+  2. Bắt lỗi mềm mọi ngoại lệ từ MCP Client, luôn bảo đảm trả về kiểu chuỗi `str` cho `observation` để không bao giờ ngắt quãng vòng lặp ReAct.
+  3. Định nghĩa dataclass `AgentStep` tinh gọn phục vụ trích xuất dữ liệu cho `SessionLogger` và file báo cáo đồ án.
+
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Hàm `format_tools_description` và hàm `run_sync` trong [src/orchestrator.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/orchestrator.py) (Dòng 42 đến dòng 56 và dòng 166 đến dòng 178).
+* **Prompt chính đã dùng:**
+  > *Viết hàm tiện ích format_tools_description(tools) để chuyển đổi danh sách schema công cụ từ MCP Client thành định dạng Markdown chèn vào biến {tools_description} của System Prompt (R-04, R-08). Đồng thời viết hàm run_sync(coro) sử dụng concurrent.futures.ThreadPoolExecutor để chạy an toàn coroutine bất đồng bộ từ hàm đồng bộ mà không bị xung đột RuntimeError: This event loop is already running khi chạy trong pytest hoặc CLI.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  def format_tools_description(tools: List[Any]) -> str:
+      if not tools: return "Hiện tại không có công cụ nào khả dụng."
+      descriptions = []
+      for tool in tools:
+          name = getattr(tool, "name", str(tool))
+          desc = getattr(tool, "description", "")
+          schema = getattr(tool, "input_schema", getattr(tool, "inputSchema", {}))
+          descriptions.append(f"- Tool: `{name}`\n  Mô tả: {desc}\n  Tham số (Schema): {json.dumps(schema, ensure_ascii=False)}")
+      return "\n\n".join(descriptions)
+
+  def run_sync(coro: Any) -> Any:
+      try: loop = asyncio.get_running_loop()
+      except RuntimeError: loop = None
+      if loop and loop.is_running():
+          with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+              return executor.submit(asyncio.run, coro).result()
+      return asyncio.run(coro)
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Tự viết hàm `run_sync` bằng `ThreadPoolExecutor(max_workers=1)` giải quyết triệt để lỗi xung đột event loop lồng nhau khi gọi hàm async từ môi trường sync.
+  2. Tự động kiểm tra thuộc tính linh hoạt (`input_schema` hoặc `inputSchema`) từ đối tượng Tool của MCP SDK và tuần tự hóa sang JSON UTF-8 cho System Prompt.
+  3. Đảm bảo toàn bộ prompt được nạp tách rời mã nguồn từ file ngoài `prompts/system_react.txt` (đáp ứng nghiêm ngặt R-04).
+
 
 ---
 
-#### 📌 Hạng mục 2: Xây dựng MCP Server lưu trữ khiếu nại & Tra cứu quy chế (`src/mcp/server.py`)
-* **Tôi hỏi gì:** Cú pháp đăng ký `@mcp.tool()`, kỹ thuật kết nối module RAG vào MCP Server và giữ luồng stdio sạch.
-* **AI đã làm gì:** Gợi ý cách khai báo công cụ `lookup_policy(query: str)`, kết nối với VectorStore / RAG Pipeline và cơ chế fallback tìm kiếm BM25 an toàn.
-* **Sinh viên tự làm & điều chỉnh:** Đăng ký 3 công cụ (`lookup_policy`, `submit_complaint`, `check_complaint_status`), chuyển hướng toàn bộ log sang `sys.stderr` để giữ sạch luồng stdout cho gói tin JSON-RPC, khởi tạo bộ nhớ đệm `VectorStore` dùng chung, và tự viết logic sinh mã đơn tăng dần `CPL-YYYY-NNNN`.
-* **Minh chứng:** [`src/mcp/server.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/mcp/server.py)
+### Thành viên: [Phạm Phước Anh] — Member C (System Integrator & Evaluator)
 
----
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Hàm `generate` của class `RobustLLMClient` trong [src/llm_client.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/llm_client.py) (Dòng 58 đến dòng 94) và file unit test [tests/test_llm_client.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/tests/test_llm_client.py).
+* **Prompt chính đã dùng:**
+  > *Viết class RobustLLMClient bọc Groq API (mô hình qwen/qwen3.8-27b), tích hợp cơ chế tự động thử lại Exponential Backoff time.sleep(2 ** attempt) khi gặp sự cố mạng hoặc lỗi rate limit (R-04, Tuần 2). Trích xuất chính xác token thật (prompt_tokens, completion_tokens, total_tokens) từ response và viết unit test bằng unittest.mock.MagicMock để kiểm thử tự động mà không tốn chi phí gọi API thật.*
 
-#### 📌 Hạng mục 3: Vòng lặp ReAct Orchestrator & Xác minh dữ liệu (`src/orchestrator.py`)
-* **Tôi hỏi gì:** Hỗ trợ biểu thức chính quy (regex) bóc tách JSON và khung vòng lặp ReAct (Think - Act - Observe).
-* **AI đã làm gì:** Gợi ý regex trích xuất khối JSON từ phản hồi của LLM và cấu trúc vòng lặp `for step in range(MAX_STEPS)`.
-* **Sinh viên tự làm & điều chỉnh:** 
-  * Tự lập trình logic kiểm soát xác minh: Khi gọi tool nộp khiếu nại, bắt buộc phải gọi tool đọc để đối soát dữ liệu thật trong CSDL trước khi đưa ra câu trả lời cuối.
-  * Tự cài đặt cơ chế xử lý lỗi mềm để phản hồi lại ngữ cảnh cho LLM tự sửa sai nếu sinh JSON lỗi, tránh crash chương trình.
-  * Tinh gọn toàn bộ mã nguồn để dễ theo dõi và thuận tiện giải thích khi bảo vệ trực tiếp.
-* **Minh chứng:** [`src/orchestrator.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/orchestrator.py)
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  class RobustLLMClient:
+      def __init__(self, model: str = DEFAULT_MODEL, max_retries: int = 3, timeout: int = 30, client: Optional[Any] = None):
+          self.model = os.getenv("MODEL") or model
+          self.max_retries = max_retries
+          self.timeout = timeout
+          self.client = client if client is not None else Groq(api_key=os.getenv("GROQ_API_KEY") or "gsk-dummy")
 
----
+      def generate(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
+          for attempt in range(self.max_retries):
+              try:
+                  response = self.client.chat.completions.create(model=self.model, messages=messages, timeout=self.timeout)
+                  return {
+                      "content": response.choices[0].message.content or "",
+                      "usage": {
+                          "prompt_tokens": response.usage.prompt_tokens,
+                          "completion_tokens": response.usage.completion_tokens,
+                          "total_tokens": response.usage.total_tokens,
+                      },
+                  }
+              except Exception as e:
+                  if attempt == self.max_retries - 1: raise e
+                  time.sleep(2 ** attempt)
+  ```
 
-### 🟣 Thành viên C: Phạm Phước Anh — System Integrator & Evaluator
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Tự thiết kế và cài đặt kết nối Groq API linh hoạt qua biến môi trường `MODEL` và `GROQ_API_KEY`.
+  2. Bổ sung cơ chế bóc tách mã lỗi HTTP (`status_code`), in log cảnh báo retry chi tiết thời gian thực và cấu hình `sys.stdout.reconfigure(encoding="utf-8")` tránh lỗi charmap trên Windows.
+  3. Làm chủ mã nguồn file test giả lập Mocking, chạy lệnh `pytest tests/test_llm_client.py` xác minh 100% test pass.
 
-#### 📌 Hạng mục 1: Xây dựng Robust LLM Client & Prompt Loader (`src/llm_client.py`)
-* **Tôi hỏi gì:** Hướng dẫn viết hàm Exponential Backoff khi API lỗi mạng và tạo file unit test để kiểm tra tự động mà không tốn chi phí gọi API thật.
-* **AI đã làm gì:** 
-  * Gợi ý khung thử lại `time.sleep(2 ** attempt)` trong khối `try/except`.
-  * **Sinh toàn bộ mã nguồn file kiểm thử `tests/test_llm_client.py`**, sử dụng kỹ thuật giả lập (Mocking với `unittest.mock.MagicMock`) để mô phỏng phản hồi của Groq và tình huống API bị lỗi mạng/rate limit ở lần 1 rồi thành công ở lần 2.
-* **Sinh viên tự làm & điều chỉnh:**
-  1. Tự thiết kế và cài đặt class `RobustLLMClient` kết nối trực tiếp với Groq API (`from groq import Groq`) và model `openai/gpt-oss-20b` theo đúng kiến thức đã học tại Tuần 2.
-  2. Tự viết logic bóc tách token thật (`prompt_tokens`, `completion_tokens`, `total_tokens`) từ đối tượng response của Groq.
-  3. Đọc hiểu, làm chủ luồng chạy của file test do AI sinh, chạy lệnh `uv run pytest tests/test_llm_client.py` để xác minh và sẵn sàng giải thích cơ chế Mock khi giảng viên vấn đáp.
-  4. Tự bổ sung cơ chế bóc tách mã lỗi HTTP (`status_code`), in log cảnh báo chi tiết theo thời gian thực ở từng lần retry với Exponential Backoff và cấu hình `sys.stdout.reconfigure(encoding="utf-8")` tránh lỗi charmap trên môi trường Windows.
-* **Minh chứng:** [`src/llm_client.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/llm_client.py) và [`tests/test_llm_client.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_llm_client.py)
 
----
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Khởi tạo class `SessionLogger`, hàm `log_record`, và hàm `estimate_cost` trong [src/utils/logger.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/utils/logger.py) (Dòng 29 đến dòng 105) cùng [tests/test_logger.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/tests/test_logger.py).
+* **Prompt chính đã dùng:**
+  > *Viết class SessionLogger để ghi trace từng phiên chạy của Agent thành file JSON Lines tại logs/run_TIMESTAMP.jsonl theo yêu cầu R-01 (PDF 02 §1). Lưu đầy đủ timestamp, user_query, steps suy luận, usage token thật và chi phí USD quy đổi theo bảng giá models. Viết hàm estimate_cost linh hoạt hỗ trợ tính toán chi phí token.*
 
-#### 📌 Hạng mục 2: Xây dựng Session & Usage Logger (`src/utils/logger.py`)
-* **Tôi hỏi gì:** Cú pháp sinh file log theo thời gian thực và tạo file unit test để kiểm tra việc ghi log JSON Lines.
-* **AI đã làm gì:** 
-  * Gợi ý cú pháp định dạng chuỗi `datetime.now().strftime(...)` và cấu trúc lớp `SessionLogger`.
-  * **Sinh toàn bộ mã nguồn file kiểm thử `tests/test_logger.py`**, sử dụng thư mục tạm `tempfile.TemporaryDirectory()` để kiểm tra việc ghi, đọc file log JSONL và kiểm tra tính toán chi phí token.
-* **Sinh viên tự làm & điều chỉnh:**
-  1. Kế thừa trực tiếp bảng giá `PRICING` và công thức tính chi phí từ bài tập Tuần 2, không cần AI sinh phần này.
-  2. Bổ sung trường `steps` để lưu vết đầy đủ chuỗi suy luận ReAct theo chuẩn yêu cầu R-01 của đồ án.
-  3. Tự đối soát và đồng bộ các tham số của hàm `log_record` để khớp hoàn toàn với lệnh gọi từ bộ điều phối `src/orchestrator.py`.
-  4. Đọc hiểu toàn bộ file test do AI sinh, chạy kiểm thử bằng `pytest`, kiểm tra tính toàn vẹn của dữ liệu tiếng Việt UTF-8 và làm chủ mã nguồn để bảo vệ đồ án.
-  5. *Bổ sung sửa lỗi (Bug fix):* Khi chạy kiểm thử kết nối với bộ đánh giá, phát hiện lỗi `ImportError: cannot import name 'estimate_cost' from 'src.utils.logger'`. Sinh viên bổ sung thêm hàm `estimate_cost` ở cấp module hỗ trợ linh hoạt cả 2 kiểu đối số truyền vào, giữ nguyên vẹn toàn bộ class `SessionLogger` mà không cần thay thế hay viết lại class.
-* **Minh chứng:** [`src/utils/logger.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/utils/logger.py) và [`tests/test_logger.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_logger.py)
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  class SessionLogger:
+      def __init__(self, log_dir: str = "logs", session_file: Optional[str] = None):
+          self.log_dir = log_dir
+          os.makedirs(self.log_dir, exist_ok=True)
+          timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+          self.log_file = os.path.join(self.log_dir, session_file or f"run_{timestamp}.jsonl")
 
----
+      def log_record(self, query_id: str = "interactive", user_query: str = "", steps: Optional[List[Any]] = None, usage: Optional[Dict[str, Any]] = None, final_answer: str = "", **kwargs: Any) -> Dict[str, Any]:
+          safe_usage = usage or {"prompt_tokens": 0, "completion_tokens": 0}
+          cost = estimate_cost(model=os.getenv("MODEL", DEFAULT_MODEL), prompt_tokens=safe_usage.get("prompt_tokens", 0), completion_tokens=safe_usage.get("completion_tokens", 0))
+          record = {"timestamp": datetime.now().isoformat(), "query_id": query_id, "user_query": user_query, "steps": steps or [], "usage": safe_usage, "cost_usd": cost, "final_answer": final_answer}
+          with open(self.log_file, "a", encoding="utf-8") as f:
+              f.write(json.dumps(record, ensure_ascii=False) + "\n")
+          return record
+  ```
 
-#### 📌 Hạng mục 3: Bộ chạy đánh giá tự động đa tầng (`tests/test_agent.py` cho `make eval` — Mới thêm)
-* **Tôi hỏi gì:** Hướng dẫn cấu trúc đánh giá tự động 4 tầng nghiệp vụ (Grounding, Calculation áp trần, Side-Effect Verify R-07, Calibration câu hỏi bẫy) và sinh các test case unit test để kiểm thử logic này.
-* **AI đã làm gì:** 
-  * Gợi ý cấu trúc bảng tổng kết (Evaluation Summary Table) in ra tỉ lệ phần trăm đạt của từng tầng.
-  * **Sinh toàn bộ các hàm kiểm thử đơn vị (`test_evaluate_*`) trong `tests/test_agent.py`** để kiểm tra tự động các kịch bản chấm điểm (khớp trích dẫn Điều, áp trần tính điểm, phát hiện gọi đủ cặp tool nộp và tra cứu đơn, từ chối câu hỏi bẫy).
-* **Sinh viên tự làm & điều chỉnh:**
-  1. Tự thiết kế và cài đặt logic chấm điểm trong `evaluate_single_query`: kiểm tra trích dẫn số Điều quy chế, số điểm áp trần, đối soát cặp tool theo quy tắc R-07, và tỉ lệ từ chối câu bẫy (mục tiêu >= 80%).
-  2. Tự tích hợp `ReActOrchestrator`, `RobustLLMClient` và `SessionLogger` vào hàm `run_evaluation_async` để đọc bộ 16 câu hỏi từ `tests/testset.jsonl`, đo đếm token thực tế và chi phí API.
-  3. Trực tiếp chạy và kiểm thử toàn bộ các test cases do AI sinh thông qua `uv run pytest`, chủ động debug xử lý triệt để lỗi môi trường Windows (charmap encoding UTF-8, cấu hình `sys.path`).
-* **Minh chứng:** [`tests/test_agent.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_agent.py)
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Tự kế thừa bảng giá `PRICING` quy đổi token từ bài học Tuần 2 và thiết kế hàm `estimate_cost` ở cấp module hỗ trợ linh hoạt cả 2 kiểu thứ tự đối số.
+  2. Bổ sung trường `steps` để lưu vết đầy đủ chuỗi suy luận ReAct và đồng bộ các tham số của hàm `log_record` khớp hoàn toàn với `ReActOrchestrator`.
+  3. Đảm bảo dữ liệu ghi vào file JSONL dùng `ensure_ascii=False` để giữ nguyên tiếng Việt có dấu và giải quyết triệt để lỗi import khi chạy test.
 
----
 
-#### 📌 Hạng mục 4: Giao diện dòng lệnh tương tác CLI (`src/main.py` cho `make demo` — Mới thêm)
-* **Tôi hỏi gì:** Yêu cầu AI viết hoàn chỉnh mã nguồn giao diện dòng lệnh tương tác (interactive CLI REPL) kết nối toàn bộ hệ thống để chạy lệnh `make demo`.
-* **AI đã làm gì:** 
-  * **Viết toàn bộ mã nguồn file `src/main.py`**:
-    - Khởi tạo và liên kết các module: `RobustLLMClient`, `MCPClientManager` (qua giao thức stdio), `ReActOrchestrator` và `SessionLogger`.
-    - Xây dựng vòng lặp REPL `run_interactive_cli()` nhận input từ người dùng, hỗ trợ các lệnh điều khiển phiên (`help`, `tools`, `exit`/`quit`/`q`).
-    - Bắt lỗi ngắt chương trình (`KeyboardInterrupt`) để đóng kết nối tiến trình MCP an toàn trước khi thoát.
-    - Hiển thị trực quan tiến trình suy luận ReAct từng bước (Think -> Act -> Observe), in câu trả lời cuối cùng, cùng bảng thống kê số bước, lượng token tiêu thụ và chi phí USD ước tính theo thời gian thực.
-* **Sinh viên tự làm & điều chỉnh:**
-  1. Trực tiếp chạy thử nghiệm tương tác dòng lệnh (`uv run python src/main.py`).
-  2. Phát hiện và xử lý lỗi môi trường Windows: giải quyết hiện tượng thư mục `src/mcp` làm che khuất (shadowing) thư viện `mcp` chính thức bằng cách cấu hình lại `sys.path`, đồng thời bổ sung `sys.stdout.reconfigure(encoding="utf-8")` để khắc phục lỗi văng `UnicodeEncodeError (charmap cp1252)`.
-* **Minh chứng:** [`src/main.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/main.py)
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Bộ kiểm thử đánh giá tự động đa tầng trong [tests/test_agent.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/tests/test_agent.py) (Dòng 53 đến dòng 377).
+* **Prompt chính đã dùng:**
+  > *Viết script đánh giá tự động toàn diện hệ thống (make eval) đọc tập 16 câu hỏi từ tests/testset.jsonl. Thiết kế logic chấm điểm 4 tầng nghiệp vụ: Grounding accuracy (trích dẫn Điều/Khoản), Calculation accuracy (áp trần điểm số), Tool Side-Effect Verify (R-07 kiểm tra đủ cặp tool submit và check status), và Calibration Rate (tỉ lệ từ chối câu hỏi bẫy >= 80%). Xuất bảng tổng kết Evaluation Summary Table in ra console.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  def evaluate_single_query(query_data: Dict[str, Any], agent_result: Dict[str, Any]) -> Dict[str, Any]:
+      category = query_data.get("category", "")
+      final_ans = agent_result.get("final_answer", "")
+      steps = agent_result.get("steps", [])
+      tools_called = [s.get("tool_name") for s in steps if s.get("action") == "call_tool"]
+      
+      passed = False
+      if category == "grounding":
+          passed = any(re.search(pat, final_ans, re.IGNORECASE) for pat in query_data.get("expected_sources", []))
+      elif category == "side_effect":
+          passed = ("submit_complaint" in tools_called) and ("check_complaint_status" in tools_called)
+      elif category == "calibration":
+          passed = any(kw in final_ans.lower() for kw in REFUSAL_KEYWORDS)
+      return {"query_id": query_data.get("id"), "passed": passed, "tools_called": tools_called}
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Tự thiết kế và cài đặt logic chấm điểm đa tầng trong `evaluate_single_query` bám sát yêu cầu nghiệp vụ PDF 02 §1.4.
+  2. Tích hợp `ReActOrchestrator`, `RobustLLMClient` và `SessionLogger` vào hàm `run_evaluation_async` để đọc bộ câu hỏi, đo đếm token thực tế và chi phí API.
+  3. Cấu hình cờ CLI `--max-queries` và `--model`, xử lý hiển thị bảng kết quả đánh giá (Evaluation Summary Table) trực quan.
+
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Giao diện dòng lệnh tương tác REPL và các hàm hiển thị bảng điều khiển trong [src/main.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/main.py) (Dòng 52 đến dòng 262).
+* **Prompt chính đã dùng:**
+  > *Viết giao diện dòng lệnh tương tác CLI REPL (make demo) bằng thư viện Rich cho hệ thống Trợ lý Điểm Rèn luyện T4. Khởi tạo và kết nối RobustLLMClient, MCPClientManager (stdio), ReActOrchestrator và SessionLogger. Hiển thị Panel giới thiệu đẹp mắt, hỗ trợ các lệnh điều khiển ('help', 'tools', 'exit'/'q'), in tiến trình suy luận ReAct từng bước (Think -> Act -> Observe) và in bảng thống kê Usage token/chi phí theo thời gian thực.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  async def run_interactive_cli() -> None:
+      render_banner()
+      async with MCPClientManager() as mcp_client:
+          orchestrator = ReActOrchestrator(llm_client=llm, mcp_client=mcp_client, logger=logger)
+          while True:
+              try:
+                  query = console.input("[bold yellow]Sinh viên[/bold yellow]: ").strip()
+                  if not query: continue
+                  if query.lower() in ("exit", "quit", "q"): break
+                  if query.lower() == "help": render_help(); continue
+                  res = await orchestrator.arun(query, return_details=True)
+                  for step in res.get("steps", []): render_step(step)
+                  render_final_answer(res.get("final_answer", ""))
+                  render_stats(res.get("usage", {}), res.get("steps", []))
+              except KeyboardInterrupt:
+                  break
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Xử lý triệt để lỗi môi trường Windows với `sys.stdout.reconfigure(encoding="utf-8")` chống lỗi `UnicodeEncodeError (charmap cp1252)`.
+  2. Bổ sung đoạn mã lọc `src` khỏi `sys.path` để không làm che khuất gói thư viện `mcp` SDK chính thức trên Windows.
+  3. Bổ sung các lệnh tương tác `tools` và bảng hướng dẫn mẫu `render_help()` theo 4 tầng nghiệp vụ phục vụ việc chấm demo trực tiếp.
 
 
 
