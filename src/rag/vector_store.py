@@ -10,7 +10,11 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from dotenv import load_dotenv
-from jina_embeddings import jina_embeddings
+
+try:
+    from jina_embeddings import jina_embeddings
+except ImportError:
+    jina_embeddings = None
 
 from src.rag.doc_model import Document, DocumentChunk
 
@@ -32,6 +36,12 @@ def _embed(text: str, model: str = JINA_MODEL) -> List[float]:
         raise ValueError(
             "Không tìm thấy JINA_API_KEY. "
             "Vui lòng kiểm tra file .env."
+        )
+
+    if jina_embeddings is None:
+        raise ImportError(
+            "Chưa cài đặt thư viện jina_embeddings. "
+            "Vui lòng kiểm tra môi trường hoặc sử dụng tìm kiếm BM25."
         )
 
     response = jina_embeddings(

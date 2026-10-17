@@ -7,18 +7,20 @@ Cung cấp các thành phần cho giao thức Model Context Protocol (stdio):
 """
 
 from src.mcp.schemas import (
-    SubmitComplaintInput,
-    SubmitComplaintOutput,
     CheckComplaintInput,
     ComplaintRecord,
+    LookupPolicyInput,
+    SubmitComplaintInput,
+    SubmitComplaintOutput,
 )
 from src.mcp.client import (
     MCPClientManager,
-    ToolDefinition,
     ToolCallResult,
+    ToolDefinition,
 )
 
 __all__ = [
+    "LookupPolicyInput",
     "SubmitComplaintInput",
     "SubmitComplaintOutput",
     "CheckComplaintInput",
