@@ -6,19 +6,28 @@ Cung cấp các thành phần cho giao thức Model Context Protocol (stdio):
 - client: MCP Client khám phá công cụ động (Dynamic Tool Discovery)
 """
 
+import sys
+from pathlib import Path
+
+# Tự động gỡ bỏ thư mục 'src' khỏi sys.path để không che khuất thư viện 'mcp' chính thức
+_src_dir = Path(__file__).resolve().parent.parent
+sys.path = [p for p in sys.path if Path(p).resolve() != _src_dir and p != "src"]
+
 from src.mcp.schemas import (
-    SubmitComplaintInput,
-    SubmitComplaintOutput,
     CheckComplaintInput,
     ComplaintRecord,
+    LookupPolicyInput,
+    SubmitComplaintInput,
+    SubmitComplaintOutput,
 )
 from src.mcp.client import (
     MCPClientManager,
-    ToolDefinition,
     ToolCallResult,
+    ToolDefinition,
 )
 
 __all__ = [
+    "LookupPolicyInput",
     "SubmitComplaintInput",
     "SubmitComplaintOutput",
     "CheckComplaintInput",

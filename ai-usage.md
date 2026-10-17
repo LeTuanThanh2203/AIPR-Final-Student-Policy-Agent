@@ -133,10 +133,10 @@
 
 ---
 
-#### 📌 Hạng mục 2: Xây dựng MCP Server lưu trữ khiếu nại (`src/mcp/server.py`)
-* **Tôi hỏi gì:** Cú pháp đăng ký `@mcp.tool()` và kỹ thuật lưu file JSON an toàn trên tiến trình stdio.
-* **AI đã làm gì:** Gợi ý cấu trúc server FastMCP/MCPServer và kỹ thuật atomic write (ghi file tạm `.tmp` rồi đổi tên).
-* **Sinh viên tự làm & điều chỉnh:** Giới hạn đúng 2 công cụ cốt lõi (`submit_complaint`, `check_complaint_status`), chuyển hướng toàn bộ log sang `sys.stderr` để giữ sạch luồng stdout cho gói tin JSON-RPC, và tự viết logic sinh mã đơn tăng dần `CPL-YYYY-NNNN`.
+#### 📌 Hạng mục 2: Xây dựng MCP Server lưu trữ khiếu nại & Tra cứu quy chế (`src/mcp/server.py`)
+* **Tôi hỏi gì:** Cú pháp đăng ký `@mcp.tool()`, kỹ thuật kết nối module RAG vào MCP Server và giữ luồng stdio sạch.
+* **AI đã làm gì:** Gợi ý cách khai báo công cụ `lookup_policy(query: str)`, kết nối với VectorStore / RAG Pipeline và cơ chế fallback tìm kiếm BM25 an toàn.
+* **Sinh viên tự làm & điều chỉnh:** Đăng ký 3 công cụ (`lookup_policy`, `submit_complaint`, `check_complaint_status`), chuyển hướng toàn bộ log sang `sys.stderr` để giữ sạch luồng stdout cho gói tin JSON-RPC, khởi tạo bộ nhớ đệm `VectorStore` dùng chung, và tự viết logic sinh mã đơn tăng dần `CPL-YYYY-NNNN`.
 * **Minh chứng:** [`src/mcp/server.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/mcp/server.py)
 
 ---

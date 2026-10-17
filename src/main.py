@@ -32,14 +32,13 @@ if hasattr(sys.stdout, "reconfigure"):
 
 # Đảm bảo thư mục gốc dự án nằm ở đầu PYTHONPATH và loại bỏ thư mục src để không làm lu mờ gói thư viện mcp
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-src_dir = str(PROJECT_ROOT / "src")
-while src_dir in sys.path:
-    sys.path.remove(src_dir)
+src_dir_path = (PROJECT_ROOT / "src").resolve()
+
+sys.path = [p for p in sys.path if Path(p).resolve() != src_dir_path and p != "src"]
 
 proj_root_str = str(PROJECT_ROOT)
-if proj_root_str in sys.path:
-    sys.path.remove(proj_root_str)
-sys.path.insert(0, proj_root_str)
+if not any(Path(p).resolve() == PROJECT_ROOT for p in sys.path):
+    sys.path.insert(0, proj_root_str)
 
 from src.llm_client import RobustLLMClient
 from src.mcp.client import MCPClientManager

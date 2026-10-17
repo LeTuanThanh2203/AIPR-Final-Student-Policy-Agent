@@ -113,6 +113,28 @@ class CheckComplaintInput:
 
 
 @dataclass
+class LookupPolicyInput:
+    """Tham số khi tra cứu quy chế điểm rèn luyện (Tool Đọc - R-05 & Tầng a)."""
+    query: str
+
+    def __post_init__(self) -> None:
+        self.query = _require_non_empty("query", self.query)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def model_json_schema(cls) -> Dict[str, Any]:
+        """Tương thích cú pháp Pydantic (W6 ex0_2_pydantic_schema.py)."""
+        from pydantic import TypeAdapter
+        return TypeAdapter(cls).json_schema()
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> LookupPolicyInput:
+        return cls(query=data.get("query", ""))
+
+
+@dataclass
 class ComplaintRecord:
     """Bản ghi khiếu nại lưu trữ trong CSDL file data/complaints.json."""
     complaint_id: str
