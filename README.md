@@ -31,8 +31,6 @@ make test
 | **🔵 Lê Tuấn Thành** | **Agent & MCP Architect** | `src/mcp/schemas.py`<br>`src/mcp/server.py`<br>`src/mcp/client.py`<br>`src/orchestrator.py` | **R-02, R-03, R-06, R-07, R-08**: Schemas `@dataclass` (W1), MCP Tools (W7 stdio), Vòng lặp ReAct tự viết tay (W6), cơ chế an toàn và BẮT BUỘC VERIFY sau khi ghi. |
 | **🟣 Phạm Phước Anh** | **System Integrator & Evaluator** | `src/llm_client.py`<br>`src/utils/logger.py`<br>`src/main.py`<br>`tests/testset.jsonl`<br>`tests/test_agent.py`<br>`tests/test_llm_client.py`<br>`tests/test_logger.py` | **R-01, R-04**: Wrapper gọi LLM API với Exponential Backoff & Timeout (W2), log lỗi HTTP, System Prompts file ngoài, Logger JSONL đo token thật từ API, CLI tương tác Rich, bộ testset & runner `make eval`, bộ 12 unit tests. |
 
----
-
 ## 3. Hệ thống 3 MCP Tools cho Đề tài  (`src/mcp/server.py`)
 
 Hệ thống MCP Server chạy qua giao thức `stdio` , đảm bảo kênh `stdout` cho JSON-RPC và cung cấp các công cụ cho chu trình suy luận ReAct:
@@ -42,6 +40,18 @@ Hệ thống MCP Server chạy qua giao thức `stdio` , đảm bảo kênh `std
 3. **`check_complaint_status(complaint_id)` [ĐỌC - BẮT BUỘC VERIFY]:** Tra cứu trạng thái đơn khiếu nại từ đĩa để đối soát xác minh dữ liệu đã được ghi nhận thật trong file JSON ngay trong phiên chạy (Tầng c - R-07).
 
 > 💡 **Lưu ý về Tầng b (Transform - Tính toán & Áp trần):** Logic tính tổng điểm rèn luyện và áp mức trần tối đa theo từng Điều/Tiêu chí quy chế được ReAct Agent thực thi suy luận chuẩn xác dựa trên căn cứ quy định trích xuất từ công cụ `lookup_policy`.
+
+---
+
+## 4. Hybrid Search (W4) & Kỹ năng Calibration (PDF 01)
+
+- **Hybrid Search (`src/rag/hybrid_search.py`):**  Kết hợp tìm kiếm ngữ nghĩa Dense (Vector Cosine Similarity trên NumPy) và tìm kiếm từ khóa Sparse (BM25 Okapi) theo trọng số:
+  $$\text{Score}_{hybrid} = 0.3 \times \text{Score}_{BM25} + 0.7 \times \text{Score}_{Cosine}$$
+  *(Lưu ý: Không có hàm code nào tên là `calibration` trong RAG).*
+- **Calibration ():** Là cơ chế **"biết khi nào KHÔNG trả lời" (Say "I don't know")** nhằm chống ảo giác (hallucination):
+  - Khi gặp câu hỏi bẫy hoặc ngoài quy chế (`no_answer: true` trong testset như hỏi về rank game, phim Marvel, đổi bằng lái xe), tài liệu truy xuất sẽ không có câu trả lời.
+  - System Prompt và logic kiểm soát context yêu cầu Agent từ chối lịch sự: *"Thông tin này không có trong quy chế điểm rèn luyện"*.
+  - Bộ kiểm thử `tests/test_agent.py` khi chạy `make eval` sẽ đo lường **Tỉ lệ từ chối đúng (Calibration Rate $\ge 80\%$)** trên 4 câu `no_answer`.
 
 ---
 
