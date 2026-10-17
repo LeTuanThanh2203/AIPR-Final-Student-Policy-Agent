@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import os
+import sys
 import time
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from groq import Groq
+
+# Đảm bảo hiển thị UTF-8 an toàn trên console Windows
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 load_dotenv()
 
@@ -67,8 +76,18 @@ class RobustLLMClient:
                     },
                 }
             except Exception as e:
+                # Trích xuất mã trạng thái HTTP nếu có (từ Groq API Error hoặc HTTP error)
+                status_code = getattr(e, "status_code", None)
+                err_detail = f"Mã HTTP {status_code} - {e}" if status_code else str(e)
+                print(
+                    f"[LLMClient] Cảnh báo lỗi API (Lần thử {attempt + 1}/{self.max_retries}): {err_detail}. "
+                    f"Đang tạm dừng {2 ** attempt}s trước khi thử lại..."
+                )
+
                 # Nếu đã thử đến lần cuối cùng mà vẫn lỗi thì ném exception ra ngoài
                 if attempt == self.max_retries - 1:
+                    print(f"[LLMClient] Đã thử lại tối đa {self.max_retries} lần nhưng vẫn thất bại.")
                     raise e
+
                 # Khi gặp lỗi mạng hoặc quá tải (rate limit), tạm dừng theo hàm số mũ rồi thử lại
                 time.sleep(2 ** attempt)

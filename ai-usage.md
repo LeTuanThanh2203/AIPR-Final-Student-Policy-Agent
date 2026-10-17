@@ -163,6 +163,7 @@
   1. Tự thiết kế và cài đặt class `RobustLLMClient` kết nối trực tiếp với Groq API (`from groq import Groq`) và model `openai/gpt-oss-20b` theo đúng kiến thức đã học tại Tuần 2.
   2. Tự viết logic bóc tách token thật (`prompt_tokens`, `completion_tokens`, `total_tokens`) từ đối tượng response của Groq.
   3. Đọc hiểu, làm chủ luồng chạy của file test do AI sinh, chạy lệnh `uv run pytest tests/test_llm_client.py` để xác minh và sẵn sàng giải thích cơ chế Mock khi giảng viên vấn đáp.
+  4. Tự bổ sung cơ chế bóc tách mã lỗi HTTP (`status_code`), in log cảnh báo chi tiết theo thời gian thực ở từng lần retry với Exponential Backoff và cấu hình `sys.stdout.reconfigure(encoding="utf-8")` tránh lỗi charmap trên môi trường Windows.
 * **Minh chứng:** [`src/llm_client.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/llm_client.py) và [`tests/test_llm_client.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_llm_client.py)
 
 ---
