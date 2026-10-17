@@ -8,7 +8,7 @@
 
 | STT | Thành viên | Vai trò phụ trách | Công cụ AI | Phạm vi áp dụng chính |
 | :---: | :--- | :--- | :--- | :--- |
-| 1 | [Họ tên SV 1 - MSSV] | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* |
+| 1 | **Ca Ngọc Tân** | **RAG và Data Engineer** | **Antigravity** | **AI hỗ trợ sinh mã nguồn xử lý và phân đoạn văn bản, triển khai Hybrid Search và tích hợp cơ chế Calibration trong RAG Pipeline** |
 | 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Claude & GitHub Copilot** | **Hỗ trợ cú pháp Typed Schemas, MCP Server stdio & ReAct Orchestrator** |
 | 3 | **Phạm Phước Anh** | **System Integrator & Evaluator** | **Antigravity AI Assistant & ChatGPT** | **Giúp hoàn thiện UI main.py, hỗ trợ hoàn thành unit tests, hỗ trợ cấu trúc đánh giá tự động và chuẩn hóa logger** |
 
