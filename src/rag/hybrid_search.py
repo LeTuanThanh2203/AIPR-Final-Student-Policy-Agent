@@ -5,19 +5,24 @@ from typing import List, Tuple
 from rank_bm25 import BM25Okapi
 
 from src.rag.doc_model import DocumentChunk
+from src.rag.vector_store import cosine_similarity, embed_query
 
 
 def normalise_scores(scores: List[float]) -> List[float]:
     """Chuẩn hóa điểm số về khoảng [0, 1] (W4_2)."""
-    # Gợi ý: (score - min_s) / (max_s - min_s)
-    pass
+    if not scores:
+        return []
+    min_s = float(min(scores))
+    max_s = float(max(scores))
+    if max_s == min_s:
+        return [1.0 if max_s > 0 else 0.0 for _ in scores]
+    return [(s - min_s) / (max_s - min_s) for s in scores]
 
 
 def build_bm25_index(chunks: List[DocumentChunk]) -> BM25Okapi:
     """Xây dựng chỉ mục BM25 từ danh sách chunks (W4_2)."""
-    # Gợi ý: Tokenize content bằng split() và khởi tạo BM25Okapi
-    pass
-
+    tokenized_corpus = [chunk.content.lower().split() for chunk in chunks]
+    return BM25Okapi(tokenized_corpus)
 
 def hybrid_search(
     query: str,
@@ -28,10 +33,28 @@ def hybrid_search(
     w_bm25: float = 0.3,
     w_vector: float = 0.7,
 ) -> List[Tuple[DocumentChunk, float]]:
-    """Tìm kiếm lai kết hợp BM25 và Vector Cosine (W4_2)."""
-    # Gợi ý:
-    # 1. bm25_scores = bm25_index.get_scores(query.split())
-    # 2. cosine_scores = [cosine_similarity(query_emb, emb) for emb in embeddings]
-    # 3. normalise_scores cho cả 2 mảng điểm
-    # 4. hybrid_score = w_bm25 * bm25_norm + w_vector * cosine_norm -> sắp xếp giảm dần -> lấy top_k
-    pass
+    """Tìm kiếm lai kết hợp BM25 (Sparse) và Vector Cosine (Dense) theo trọng số chuẩn:
+    Score = 0.3 * BM25_norm + 0.7 * Cosine_norm
+    """
+    if not chunks:
+        return []
+    # 1. Tính điểm Sparse BM25
+    query_tokens = query.lower().split()
+    bm25_raw_scores = list(bm25_index.get_scores(query_tokens))
+    # 2. Tính điểm Dense Cosine Similarity
+    query_emb = embed_query(query)
+    cosine_raw_scores = [
+        cosine_similarity(query_emb, emb) if emb is not None else 0.0
+        for emb in embeddings
+    ]
+    # 3. Chuẩn hóa thang điểm [0, 1]
+    bm25_norm = normalise_scores(bm25_raw_scores)
+    cosine_norm = normalise_scores(cosine_raw_scores)
+    # 4. Ghép điểm số lai theo trọng số
+    combined_scores: List[Tuple[DocumentChunk, float]] = []
+    for i in range(len(chunks)):
+        hybrid_score = (w_bm25 * bm25_norm[i]) + (w_vector * cosine_norm[i])
+        combined_scores.append((chunks[i], float(hybrid_score)))
+    # Sắp xếp giảm dần và lấy top_k
+    combined_scores.sort(key=lambda x: x[1], reverse=True)
+    return combined_scores[:top_k]
