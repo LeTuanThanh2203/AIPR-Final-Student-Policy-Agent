@@ -10,7 +10,7 @@
 | :---: | :--- | :--- | :--- | :--- |
 | 1 | [Họ tên SV 1 - MSSV] | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* |
 | 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Claude & GitHub Copilot** | **Hỗ trợ cú pháp Typed Schemas, MCP Server stdio & ReAct Orchestrator** |
-| 3 | **Phước Anh** | **System Integrator & Evaluator** | **Antigravity AI Assistant** | **Sinh mã nguồn CLI tương tác (main.py), sinh 100% unit tests, hỗ trợ cấu trúc đánh giá tự động và chuẩn hóa logger** |
+| 3 | **Phạm Phước Anh** | **System Integrator & Evaluator** | **Antigravity AI Assistant & ChatGPT** | **Giúp hoàn thiện UI main.py, hỗ trợ hoàn thành unit tests, hỗ trợ cấu trúc đánh giá tự động và chuẩn hóa logger** |
 
 
 ---
@@ -152,7 +152,7 @@
 
 ---
 
-### 🟣 Thành viên C: Phước Anh — System Integrator & Evaluator
+### 🟣 Thành viên C: Phạm Phước Anh — System Integrator & Evaluator
 
 #### 📌 Hạng mục 1: Xây dựng Robust LLM Client & Prompt Loader (`src/llm_client.py`)
 * **Tôi hỏi gì:** Hướng dẫn viết hàm Exponential Backoff khi API lỗi mạng và tạo file unit test để kiểm tra tự động mà không tốn chi phí gọi API thật.
