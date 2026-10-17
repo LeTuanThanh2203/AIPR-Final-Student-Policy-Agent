@@ -152,7 +152,17 @@
 ---
 
 ### 🟣 Thành viên C: [Họ tên SV 3 - MSSV]
-*(Để trống cho SV tự điền)*
+
+#### 📌 Hạng mục 1: Xây dựng Robust LLM Client & Prompt Loader (`src/llm_client.py`)
+* **Tôi hỏi gì:** Hỗ trợ cú pháp đóng gói lớp `RobustLLMClient` kết nối Groq API theo phong cách Tuần 2, thuật toán Exponential Backoff tự động thử lại khi nghẽn mạng và cú pháp Mock test trong `unittest.mock`.
+* **AI đã làm gì:** Gợi ý khung try/except với `time.sleep(2 ** attempt)`, hàm `load_prompt` an toàn với Pathlib, và cấu trúc hàm test giả lập đối tượng phản hồi của Groq.
+* **Sinh viên tự làm & điều chỉnh:**
+  1. Cấu hình kết nối trực tiếp với Groq API (`from groq import Groq`) và model `openai/gpt-oss-20b` đúng như bài tập đã học tại Tuần 2.
+  2. Bóc tách chính xác số liệu `usage` thật từ Groq (`prompt_tokens`, `completion_tokens`, `total_tokens`) để đáp ứng tiêu chí đo token thật của R-01.
+  3. Tự viết bộ kiểm thử trong `tests/test_llm_client.py` kiểm tra cả trường hợp thành công và trường hợp giả lập lỗi mạng để chứng minh cơ chế retry hoạt động độc lập.
+* **Minh chứng:** [`src/llm_client.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/llm_client.py) và [`tests/test_llm_client.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_llm_client.py)
+
+
 
 ---
 
