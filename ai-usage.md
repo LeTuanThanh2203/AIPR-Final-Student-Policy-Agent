@@ -10,7 +10,8 @@
 | :---: | :--- | :--- | :--- | :--- |
 | 1 | [Họ tên SV 1 - MSSV] | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* |
 | 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Claude & GitHub Copilot** | **Hỗ trợ cú pháp Typed Schemas, MCP Server stdio & ReAct Orchestrator** |
-| 3 | [Họ tên SV 3 - MSSV] | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* |
+| 3 | **Phước Anh** | **System Integrator & Evaluator** | **Antigravity AI Assistant** | **Sinh mã nguồn CLI tương tác (main.py), sinh 100% unit tests, hỗ trợ cấu trúc đánh giá tự động và chuẩn hóa logger** |
+
 
 ---
 
@@ -151,7 +152,7 @@
 
 ---
 
-### 🟣 Thành viên C: [Họ tên SV 3 - MSSV] — System Integrator & Evaluator
+### 🟣 Thành viên C: Phước Anh — System Integrator & Evaluator
 
 #### 📌 Hạng mục 1: Xây dựng Robust LLM Client & Prompt Loader (`src/llm_client.py`)
 * **Tôi hỏi gì:** Hướng dẫn viết hàm Exponential Backoff khi API lỗi mạng và tạo file unit test để kiểm tra tự động mà không tốn chi phí gọi API thật.
@@ -176,7 +177,38 @@
   2. Bổ sung trường `steps` để lưu vết đầy đủ chuỗi suy luận ReAct theo chuẩn yêu cầu R-01 của đồ án.
   3. Tự đối soát và đồng bộ các tham số của hàm `log_record` để khớp hoàn toàn với lệnh gọi từ bộ điều phối `src/orchestrator.py`.
   4. Đọc hiểu toàn bộ file test do AI sinh, chạy kiểm thử bằng `pytest`, kiểm tra tính toàn vẹn của dữ liệu tiếng Việt UTF-8 và làm chủ mã nguồn để bảo vệ đồ án.
+  5. *Bổ sung sửa lỗi (Bug fix):* Khi chạy kiểm thử kết nối với bộ đánh giá, phát hiện lỗi `ImportError: cannot import name 'estimate_cost' from 'src.utils.logger'`. Sinh viên bổ sung thêm hàm `estimate_cost` ở cấp module hỗ trợ linh hoạt cả 2 kiểu đối số truyền vào, giữ nguyên vẹn toàn bộ class `SessionLogger` mà không cần thay thế hay viết lại class.
 * **Minh chứng:** [`src/utils/logger.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/utils/logger.py) và [`tests/test_logger.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_logger.py)
+
+---
+
+#### 📌 Hạng mục 3: Bộ chạy đánh giá tự động đa tầng (`tests/test_agent.py` cho `make eval` — Mới thêm)
+* **Tôi hỏi gì:** Hướng dẫn cấu trúc đánh giá tự động 4 tầng nghiệp vụ (Grounding, Calculation áp trần, Side-Effect Verify R-07, Calibration câu hỏi bẫy) và sinh các test case unit test để kiểm thử logic này.
+* **AI đã làm gì:** 
+  * Gợi ý cấu trúc bảng tổng kết (Evaluation Summary Table) in ra tỉ lệ phần trăm đạt của từng tầng.
+  * **Sinh toàn bộ các hàm kiểm thử đơn vị (`test_evaluate_*`) trong `tests/test_agent.py`** để kiểm tra tự động các kịch bản chấm điểm (khớp trích dẫn Điều, áp trần tính điểm, phát hiện gọi đủ cặp tool nộp và tra cứu đơn, từ chối câu hỏi bẫy).
+* **Sinh viên tự làm & điều chỉnh:**
+  1. Tự thiết kế và cài đặt logic chấm điểm trong `evaluate_single_query`: kiểm tra trích dẫn số Điều quy chế, số điểm áp trần, đối soát cặp tool theo quy tắc R-07, và tỉ lệ từ chối câu bẫy (mục tiêu >= 80%).
+  2. Tự tích hợp `ReActOrchestrator`, `RobustLLMClient` và `SessionLogger` vào hàm `run_evaluation_async` để đọc bộ 16 câu hỏi từ `tests/testset.jsonl`, đo đếm token thực tế và chi phí API.
+  3. Trực tiếp chạy và kiểm thử toàn bộ các test cases do AI sinh thông qua `uv run pytest`, chủ động debug xử lý triệt để lỗi môi trường Windows (charmap encoding UTF-8, cấu hình `sys.path`).
+* **Minh chứng:** [`tests/test_agent.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_agent.py)
+
+---
+
+#### 📌 Hạng mục 4: Giao diện dòng lệnh tương tác CLI (`src/main.py` cho `make demo` — Mới thêm)
+* **Tôi hỏi gì:** Yêu cầu AI viết hoàn chỉnh mã nguồn giao diện dòng lệnh tương tác (interactive CLI REPL) kết nối toàn bộ hệ thống để chạy lệnh `make demo`.
+* **AI đã làm gì:** 
+  * **Viết toàn bộ mã nguồn file `src/main.py`**:
+    - Khởi tạo và liên kết các module: `RobustLLMClient`, `MCPClientManager` (qua giao thức stdio), `ReActOrchestrator` và `SessionLogger`.
+    - Xây dựng vòng lặp REPL `run_interactive_cli()` nhận input từ người dùng, hỗ trợ các lệnh điều khiển phiên (`help`, `tools`, `exit`/`quit`/`q`).
+    - Bắt lỗi ngắt chương trình (`KeyboardInterrupt`) để đóng kết nối tiến trình MCP an toàn trước khi thoát.
+    - Hiển thị trực quan tiến trình suy luận ReAct từng bước (Think -> Act -> Observe), in câu trả lời cuối cùng, cùng bảng thống kê số bước, lượng token tiêu thụ và chi phí USD ước tính theo thời gian thực.
+* **Sinh viên tự làm & điều chỉnh:**
+  1. Trực tiếp chạy thử nghiệm tương tác dòng lệnh (`uv run python src/main.py`).
+  2. Phát hiện và xử lý lỗi môi trường Windows: giải quyết hiện tượng thư mục `src/mcp` làm che khuất (shadowing) thư viện `mcp` chính thức bằng cách cấu hình lại `sys.path`, đồng thời bổ sung `sys.stdout.reconfigure(encoding="utf-8")` để khắc phục lỗi văng `UnicodeEncodeError (charmap cp1252)`.
+* **Minh chứng:** [`src/main.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/main.py)
+
+
 
 ---
 
@@ -185,3 +217,4 @@
 1. Toàn bộ nội dung khai báo trên phản ánh trung thực quá trình làm việc trong dự án.
 2. Tự đọc hiểu, làm chủ 100% mã nguồn và sẵn sàng giải thích chi tiết trong buổi vấn đáp.
 3. Sử dụng AI làm công cụ hỗ trợ gợi ý cú pháp và tối ưu tốc độ, hoàn toàn làm chủ tư duy thuật toán và logic nghiệp vụ.
+

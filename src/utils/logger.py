@@ -20,6 +20,33 @@ PRICING: Dict[str, Dict[str, float]] = {
 }
 
 
+def estimate_cost(
+    model: str | int = "openai/gpt-oss-20b",
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+) -> float:
+    """Tính toán chi phí dựa trên token tiêu thụ (kế thừa trực tiếp từ W2/api_helpers.py).
+    
+    Hỗ trợ linh hoạt cả hai cách truyền tham số:
+    - estimate_cost(model, prompt_tokens, completion_tokens)
+    - estimate_cost(prompt_tokens, completion_tokens, model)
+    """
+    if isinstance(model, (int, float)) and isinstance(prompt_tokens, (int, float)):
+        # Trường hợp gọi với số token ở vị trí đầu
+        p_tok = int(model)
+        c_tok = int(prompt_tokens)
+        m_name = str(completion_tokens) if isinstance(completion_tokens, str) else "openai/gpt-oss-20b"
+    else:
+        m_name = str(model)
+        p_tok = int(prompt_tokens)
+        c_tok = int(completion_tokens)
+
+    pricing = PRICING.get(m_name, PRICING["openai/gpt-oss-20b"])
+    input_price = (p_tok / 1_000_000) * pricing["input"]
+    output_price = (c_tok / 1_000_000) * pricing["output"]
+    return input_price + output_price
+
+
 class SessionLogger:
     """Ghi log JSONL cho các phiên chạy thật (PDF 02 §1: logs/run_TIMESTAMP.jsonl)."""
 
@@ -35,12 +62,10 @@ class SessionLogger:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.log_file = os.path.join(self.log_dir, f"run_{timestamp}.jsonl")
 
-    def estimate_cost(self, prompt_tokens: int, completion_tokens: int, model: str = "openai/gpt-oss-20b") -> float:
-        """Tính toán chi phí dựa trên token tiêu thụ (kế thừa W2/api_helpers.py)."""
-        pricing = PRICING.get(model, PRICING["openai/gpt-oss-20b"])
-        input_price = (prompt_tokens / 1_000_000) * pricing["input"]
-        output_price = (completion_tokens / 1_000_000) * pricing["output"]
-        return input_price + output_price
+    def estimate_cost(self, prompt_tokens: int = 0, completion_tokens: int = 0, model: str = "openai/gpt-oss-20b") -> float:
+        """Tính toán chi phí dựa trên token tiêu thụ (ủy quyền cho hàm estimate_cost module)."""
+        return estimate_cost(model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
+
 
     def log_record(
         self,
