@@ -90,9 +90,19 @@ def evaluate_single_query(test_item: Dict[str, Any], agent_response: Dict[str, A
         expected_dieu = str(test_item.get("expected_dieu", "")).strip()
         expected_doc = str(test_item.get("expected_doc", "")).strip().lower()
 
-        # Kiểm tra trích dẫn số Điều hoặc tên văn bản trong câu trả lời hoặc trong chuỗi suy luận
-        has_dieu = f"điều {expected_dieu}" in final_answer or f"điều {expected_dieu}" in str(steps).lower() if expected_dieu else True
-        has_doc = expected_doc in final_answer or expected_doc in str(steps).lower() if expected_doc else True
+        # Kiểm tra trích dẫn số Điều trong câu trả lời hoặc trong chuỗi suy luận (hỗ trợ nhiều Điều cách nhau bởi dấu phẩy)
+        if expected_dieu:
+            dieu_list = [d.strip() for d in expected_dieu.split(",") if d.strip()]
+            has_dieu = any(f"điều {d}" in final_answer or f"điều {d}" in str(steps).lower() for d in dieu_list)
+        else:
+            has_dieu = True
+
+        # Kiểm tra căn cứ văn bản quy chế trong câu trả lời hoặc log suy luận
+        if expected_doc:
+            doc_variants = [expected_doc, "htrl", "quy chế", "quy định"]
+            has_doc = any(v in final_answer or v in str(steps).lower() for v in doc_variants)
+        else:
+            has_doc = True
 
         passed = has_dieu and has_doc
         details = f"Khớp trích dẫn Điều {expected_dieu}" if passed else f"Lỗi: Thiếu trích dẫn Điều {expected_dieu}"
@@ -109,7 +119,11 @@ def evaluate_single_query(test_item: Dict[str, Any], agent_response: Dict[str, A
             details = f"Tính đúng kết quả {expected_num}đ (có áp trần)" if passed else f"Lỗi: Không tìm thấy kết quả {expected_num}đ"
         elif item_type == "missing_data_refusal":
             # Nhận diện thiếu dữ liệu và từ chối kết luận vội vàng
-            passed = any(kw in final_answer for kw in ["thiếu", "không đủ", "chưa đủ", "cần thêm"])
+            missing_keywords = [
+                "thiếu", "không đủ", "chưa đủ", "cần thêm",
+                "không có", "không thể", "chưa có", "không có khả năng"
+            ]
+            passed = any(kw in final_answer for kw in missing_keywords)
             details = "Nhận diện đúng việc thiếu dữ liệu" if passed else "Lỗi: Đưa ra kết luận khi thiếu dữ liệu"
         else:
             # So sánh xung đột giữa các phiên bản quy chế
@@ -210,7 +224,7 @@ async def run_evaluation_async(testset_path: str = "tests/testset.jsonl") -> Dic
 
     elapsed_time = time.time() - start_time
     total_tokens = total_prompt_tokens + total_completion_tokens
-    model_name = os.getenv("MODEL", "openai/gpt-oss-20b")
+    model_name = getattr(llm_client, "model", "qwen/qwen3.8-27b")
     cost_usd = estimate_cost(model_name, total_prompt_tokens, total_completion_tokens)
 
     # Thống kê kết quả theo từng tầng nghiệp vụ

@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
-import json
 import os
+import sys
 import time
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from groq import Groq
+
+# Đảm bảo hiển thị UTF-8 an toàn trên console Windows
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 load_dotenv()
 
@@ -25,12 +33,15 @@ def load_prompt(filename: str, prompts_dir: str = "prompts") -> str:
         return f.read().strip()
 
 
+DEFAULT_MODEL = "qwen/qwen3.8-27b"
+
+
 class RobustLLMClient:
     """Client giao tiếp Groq an toàn có cơ chế thử lại."""
 
     def __init__(
         self,
-        model: str = "openai/gpt-oss-20b",
+        model: str = DEFAULT_MODEL,
         max_retries: int = 3,
         timeout: int = 30,
         client: Optional[Any] = None,
@@ -65,30 +76,18 @@ class RobustLLMClient:
                     },
                 }
             except Exception as e:
-                # Bắt lỗi đặc biệt của Groq khi model (như openai/gpt-oss-20b) tự động kích hoạt tool_use_failed
-                err_body = getattr(e, "body", {})
-                if isinstance(err_body, dict):
-                    err_info = err_body.get("error", {})
-                    if err_info.get("code") == "tool_use_failed" and "failed_generation" in err_info:
-                        try:
-                            tool_data = json.loads(err_info["failed_generation"])
-                            tool_name = str(tool_data.get("name") or "").replace("tool_", "").strip()
-                            tool_args = tool_data.get("arguments") or {}
-                            react_payload = {
-                                "thought": f"Cần gọi công cụ {tool_name} để tra cứu",
-                                "action": "call_tool",
-                                "tool_name": tool_name,
-                                "tool_args": tool_args if isinstance(tool_args, dict) else {"query": str(tool_args)},
-                            }
-                            return {
-                                "content": json.dumps(react_payload, ensure_ascii=False),
-                                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-                            }
-                        except Exception:
-                            pass
+                # Trích xuất mã trạng thái HTTP nếu có (từ Groq API Error hoặc HTTP error)
+                status_code = getattr(e, "status_code", None)
+                err_detail = f"Mã HTTP {status_code} - {e}" if status_code else str(e)
+                print(
+                    f"[LLMClient] Cảnh báo lỗi API (Lần thử {attempt + 1}/{self.max_retries}): {err_detail}. "
+                    f"Đang tạm dừng {2 ** attempt}s trước khi thử lại..."
+                )
 
                 # Nếu đã thử đến lần cuối cùng mà vẫn lỗi thì ném exception ra ngoài
                 if attempt == self.max_retries - 1:
+                    print(f"[LLMClient] Đã thử lại tối đa {self.max_retries} lần nhưng vẫn thất bại.")
                     raise e
+
                 # Khi gặp lỗi mạng hoặc quá tải (rate limit), tạm dừng theo hàm số mũ rồi thử lại
                 time.sleep(2 ** attempt)

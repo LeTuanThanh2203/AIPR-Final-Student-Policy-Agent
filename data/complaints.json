@@ -2,11 +2,21 @@
   {
     "complaint_id": "CPL-2026-0001",
     "student_id": "21120001",
-    "category": "Tiêu chí 3",
-    "reason": "Thiếu điểm",
+    "category": "Sót điểm hoạt động ngoại khóa",
+    "reason": "Bị sót 5 điểm cho hoạt động Mùa hè xanh thuộc Tiêu chí 3",
+    "evidence": "Giấy khen cấp trường",
+    "status": "pending_review",
+    "created_at": "2026-10-17T19:45:24.238571+00:00",
+    "updated_at": "2026-10-17T19:45:24.238571+00:00"
+  },
+  {
+    "complaint_id": "CPL-2026-0002",
+    "student_id": "21120099",
+    "category": "Học tập",
+    "reason": "Cập nhật sót điểm cho giải thưởng Olympic Tin học",
     "evidence": "",
     "status": "pending_review",
-    "created_at": "2026-10-17T20:48:48.585141+00:00",
-    "updated_at": "2026-10-17T20:48:48.585141+00:00"
+    "created_at": "2026-10-17T19:45:44.412073+00:00",
+    "updated_at": "2026-10-17T19:45:44.412073+00:00"
   }
 ]

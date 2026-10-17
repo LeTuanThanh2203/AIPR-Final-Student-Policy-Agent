@@ -9,6 +9,10 @@ from typing import Any, Dict, List, Optional
 
 # Bảng giá quy đổi token sang chi phí (kế thừa trực tiếp từ W2/api_helpers.py)
 PRICING: Dict[str, Dict[str, float]] = {
+    "qwen/qwen3.8-27b": {
+        "input": 0.20,   # Giá mỗi 1.000.000 input tokens (USD)
+        "output": 0.40,  # Giá mỗi 1.000.000 output tokens (USD)
+    },
     "openai/gpt-oss-20b": {
         "input": 0.15,   # Giá mỗi 1.000.000 input tokens (USD)
         "output": 0.30,  # Giá mỗi 1.000.000 output tokens (USD)
@@ -19,9 +23,11 @@ PRICING: Dict[str, Dict[str, float]] = {
     },
 }
 
+DEFAULT_MODEL = "qwen/qwen3.8-27b"
+
 
 def estimate_cost(
-    model: str | int = "openai/gpt-oss-20b",
+    model: str | int = DEFAULT_MODEL,
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
 ) -> float:
@@ -35,13 +41,13 @@ def estimate_cost(
         # Trường hợp gọi với số token ở vị trí đầu
         p_tok = int(model)
         c_tok = int(prompt_tokens)
-        m_name = str(completion_tokens) if isinstance(completion_tokens, str) else "openai/gpt-oss-20b"
+        m_name = str(completion_tokens) if isinstance(completion_tokens, str) else DEFAULT_MODEL
     else:
         m_name = str(model)
         p_tok = int(prompt_tokens)
         c_tok = int(completion_tokens)
 
-    pricing = PRICING.get(m_name, PRICING["openai/gpt-oss-20b"])
+    pricing = PRICING.get(m_name, PRICING[DEFAULT_MODEL])
     input_price = (p_tok / 1_000_000) * pricing["input"]
     output_price = (c_tok / 1_000_000) * pricing["output"]
     return input_price + output_price
@@ -62,7 +68,7 @@ class SessionLogger:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.log_file = os.path.join(self.log_dir, f"run_{timestamp}.jsonl")
 
-    def estimate_cost(self, prompt_tokens: int = 0, completion_tokens: int = 0, model: str = "openai/gpt-oss-20b") -> float:
+    def estimate_cost(self, prompt_tokens: int = 0, completion_tokens: int = 0, model: str = DEFAULT_MODEL) -> float:
         """Tính toán chi phí dựa trên token tiêu thụ (ủy quyền cho hàm estimate_cost module)."""
         return estimate_cost(model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
 
@@ -82,7 +88,7 @@ class SessionLogger:
 
         prompt_tokens = safe_usage.get("prompt_tokens", 0)
         completion_tokens = safe_usage.get("completion_tokens", 0)
-        model_name = os.getenv("MODEL", "openai/gpt-oss-20b")
+        model_name = os.getenv("MODEL", DEFAULT_MODEL)
         cost = self.estimate_cost(prompt_tokens, completion_tokens, model=model_name)
 
         # Cấu trúc bản ghi JSON Lines chuẩn yêu cầu đồ án

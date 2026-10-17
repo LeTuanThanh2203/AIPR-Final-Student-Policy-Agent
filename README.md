@@ -5,10 +5,10 @@ Hệ thống AI Agent hỗ trợ tra cứu quy chế, tính điểm rèn luyện
 
 ---
 
-## 1. Khởi chạy nhanh (Cold-Start — Member C)
+## 1. Khởi chạy nhanh (Cold-Start)
 
 ```bash
-# 1. Cấu hình API key
+# 1. Cấu hình API key (sao chép từ file mẫu)
 cp .env.example .env
 
 # 2. Cài đặt môi trường và chạy thử bằng 1 lệnh duy nhất (R-01)
@@ -16,6 +16,9 @@ make setup && make demo
 
 # 3. Đánh giá tự động trên bộ kiểm thử 16 câu hỏi (Tầng a, b, c & Calibration)
 make eval
+
+# 4. Chạy toàn bộ 12 unit tests
+make test
 ```
 
 ---
@@ -24,9 +27,9 @@ make eval
 
 | Thành viên | Vai trò cốt lõi | File phụ trách chính | Yêu cầu kỹ thuật & Kiến thức tuần liên quan |
 | :---: | :--- | :--- | :--- |
-| **🟢 Member A** | **RAG & Data Engineer** | `src/rag/document_parser.py`<br>`src/rag/vector_store.py`<br>`src/rag/hybrid_search.py`<br>`src/rag/rag_pipeline.py` | **R-05**: Logical chunking theo Điều/Khoản, VectorStore Cosine NumPy (W3), Hybrid BM25 + Cosine (W4), và Calibration threshold để từ chối câu ngoài lề. |
-| **🔵 Member B** | **Agent & MCP Architect** | `src/mcp/schemas.py`<br>`src/mcp/server.py`<br>`src/mcp/client.py`<br>`src/orchestrator.py` | **R-02, R-03, R-06, R-07, R-08**: Schemas `@dataclass` (W1), 4 MCP Tools (W7 stdio), Vòng lặp ReAct tự viết tay (W6), cơ chế an toàn và BẮT BUỘC VERIFY sau khi ghi. |
-| **🟣 Member C** | **System Integrator & Evaluator** | `src/llm_client.py`<br>`src/utils/logger.py`<br>`tests/testset.jsonl`<br>`tests/test_agent.py`<br>`Makefile`, `README.md` | **R-01, R-04**: Wrapper gọi LLM API với Exponential Backoff (W2), System Prompts file ngoài, Logger JSONL đo token thật từ API, bộ testset & runner `make eval`. |
+| **🟢 Ca Ngọc Tân** | **RAG & Data Engineer** | `src/rag/document_parser.py`<br>`src/rag/vector_store.py`<br>`src/rag/hybrid_search.py`<br>`src/rag/rag_pipeline.py` | **R-05**: Logical chunking theo Điều/Khoản, VectorStore Cosine NumPy (W3), Hybrid BM25 + Cosine (W4), và Calibration threshold để từ chối câu ngoài lề. |
+| **🔵 Lê Tuấn Thành** | **Agent & MCP Architect** | `src/mcp/schemas.py`<br>`src/mcp/server.py`<br>`src/mcp/client.py`<br>`src/orchestrator.py` | **R-02, R-03, R-06, R-07, R-08**: Schemas `@dataclass` (W1), 4 MCP Tools (W7 stdio), Vòng lặp ReAct tự viết tay (W6), cơ chế an toàn và BẮT BUỘC VERIFY sau khi ghi. |
+| **🟣 Phạm Phước Anh** | **System Integrator & Evaluator** | `src/llm_client.py`<br>`src/utils/logger.py`<br>`src/main.py`<br>`tests/testset.jsonl`<br>`tests/test_agent.py`<br>`tests/test_llm_client.py`<br>`tests/test_logger.py` | **R-01, R-04**: Wrapper gọi LLM API với Exponential Backoff & Timeout (W2), log lỗi HTTP, System Prompts file ngoài, Logger JSONL đo token thật từ API, CLI tương tác Rich, bộ testset & runner `make eval`, bộ 12 unit tests. |
 
 ---
 
@@ -55,35 +58,37 @@ make eval
 
 ```
 .
-├── .env.example              # Mẫu biến môi trường (OPENAI_API_KEY, ...)
-├── Makefile                  # make setup, make demo, make eval
+├── .env.example              # Mẫu biến môi trường (Phạm Phước Anh)
+├── Makefile                  # make setup, make demo, make eval, make test (Phạm Phước Anh)
 ├── pyproject.toml            # Quản lý thư viện và môi trường qua uv
 ├── ai-usage.md               # Bản khai báo minh bạch việc dùng AI
 ├── data/
 │   ├── raw/                  # Văn bản quy chế gốc (.txt, .pdf)
 │   ├── processed/            # chunks.json sau khi phân đoạn theo Điều/Khoản
 │   └── complaints.json       # CSDL lưu trữ hồ sơ khiếu nại
-├── prompts/                  # Prompt hệ thống tách riêng ngoài mã nguồn
+├── prompts/                  # Prompt hệ thống tách riêng ngoài mã nguồn (R-04)
 │   ├── system_react.txt      # Prompt vòng lặp Agent ReAct
 │   └── rag_grounding.txt     # Prompt RAG trích dẫn căn cứ
 ├── src/
-│   ├── main.py               # Giao diện dòng lệnh (CLI) tương tác
-│   ├── orchestrator.py       # Vòng lặp Agent ReAct tự viết (Member B - W6)
-│   ├── llm_client.py         # LLM Client Retry Backoff/Timeout (Member C - W2)
-│   ├── rag/                  # Module RAG Tra cứu Quy chế (Member A - W3, W4)
+│   ├── main.py               # Giao diện dòng lệnh CLI tương tác Rich (Phạm Phước Anh)
+│   ├── orchestrator.py       # Vòng lặp Agent ReAct tự viết (Lê Tuấn Thành - W6)
+│   ├── llm_client.py         # Robust LLM Client Retry Backoff/Timeout/HTTP Log (Phạm Phước Anh - W2)
+│   ├── rag/                  # Module RAG Tra cứu Quy chế (Ca Ngọc Tân - W3, W4)
 │   │   ├── doc_model.py      # Data models Document, DocumentChunk
 │   │   ├── document_parser.py# Logical Chunking Điều/Khoản
 │   │   ├── vector_store.py   # VectorStore + Cosine Similarity (NumPy)
 │   │   ├── hybrid_search.py  # BM25 + Vector Cosine + Calibration Threshold
 │   │   └── rag_pipeline.py   # Pipeline RAG hoàn chỉnh
-│   ├── mcp/                  # MCP Server & Client (Member B - W7)
+│   ├── mcp/                  # MCP Server & Client (Lê Tuấn Thành - W7)
 │   │   ├── schemas.py        # Typed @dataclass (R-03 & W1)
 │   │   ├── server.py         # MCP Server stdio (4 tools)
 │   │   └── client.py         # MCP Client gọi tool động (Dynamic Discovery)
 │   └── utils/
 │       ├── config.py         # Hằng số cấu hình & đường dẫn
-│       └── logger.py         # JSONL Logger đo token USAGE thật (Member C)
+│       └── logger.py         # JSONL Logger đo token USAGE thật & chi phí USD (Phạm Phước Anh)
 └── tests/
-    ├── testset.jsonl         # 16 câu hỏi kiểm thử đủ 3 tầng + bẫy Calibration
-    └── test_agent.py         # Script chạy make eval (Member C)
+    ├── testset.jsonl         # 16 câu hỏi kiểm thử đủ 3 tầng + bẫy Calibration (Phạm Phước Anh)
+    ├── test_agent.py         # Script chạy make eval & benchmark tự động (Phạm Phước Anh)
+    ├── test_llm_client.py    # Unit test LLM Client Mocking & Retry (Phạm Phước Anh)
+    └── test_logger.py        # Unit test Session & Token Usage Logger (Phạm Phước Anh)
 ```

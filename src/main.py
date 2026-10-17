@@ -148,7 +148,7 @@ async def run_interactive_cli() -> None:
     )
 
     query_counter = 0
-    model_name = os.getenv("MODEL", "openai/gpt-oss-20b")
+    model_name = getattr(llm_client, "model", "qwen/qwen3.8-27b")
 
     try:
         while True:
