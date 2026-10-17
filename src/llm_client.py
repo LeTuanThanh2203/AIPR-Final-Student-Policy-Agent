@@ -24,12 +24,15 @@ def load_prompt(filename: str, prompts_dir: str = "prompts") -> str:
         return f.read().strip()
 
 
+DEFAULT_MODEL = "qwen/qwen3.8-27b"
+
+
 class RobustLLMClient:
     """Client giao tiếp Groq an toàn có cơ chế thử lại."""
 
     def __init__(
         self,
-        model: str = "openai/gpt-oss-20b",
+        model: str = DEFAULT_MODEL,
         max_retries: int = 3,
         timeout: int = 30,
         client: Optional[Any] = None,

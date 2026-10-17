@@ -210,7 +210,7 @@ async def run_evaluation_async(testset_path: str = "tests/testset.jsonl") -> Dic
 
     elapsed_time = time.time() - start_time
     total_tokens = total_prompt_tokens + total_completion_tokens
-    model_name = os.getenv("MODEL", "openai/gpt-oss-20b")
+    model_name = getattr(llm_client, "model", "qwen/qwen3.8-27b")
     cost_usd = estimate_cost(model_name, total_prompt_tokens, total_completion_tokens)
 
     # Thống kê kết quả theo từng tầng nghiệp vụ
