@@ -1,15 +1,20 @@
 # BẢNG KHAI BÁO SỬ DỤNG AI (AI USAGE DECLARATION)
-
-## 1. BẢNG TỔNG QUAN
-| STT | Thành viên | MSSV | Công cụ AI | Phạm vi áp dụng |
-| :---: | :--- | :---: | :--- | :--- |
-| 1 | [Tên SV 1] | [MSSV 1] | ChatGPT-4o | Regex tách Điều/Khoản trong RAG |
-| 2 | [Tên SV 2] | [MSSV 2] | GitHub Copilot | Gợi ý schema @dataclass |
-| 3 | [Tên SV 3] | [MSSV 3] | Claude 3.5 Sonnet | Cấu trúc Retry backoff LLM |
+**Dự án:** Hệ thống Trợ lý Điểm Rèn luyện & Quản lý Khiếu nại (Đề tài T4 - AIPR Final Project)  
+**Nhóm:** 3 Sinh viên
 
 ---
 
-## 2. CHI TIẾT KHAI BÁO (SAMPLE MẪU)
+## 1. BẢNG TỔNG QUAN THEO THÀNH VIÊN
+
+| STT | Thành viên | Vai trò phụ trách | Công cụ AI | Phạm vi áp dụng chính |
+| :---: | :--- | :--- | :--- | :--- |
+| 1 | [Họ tên SV 1 - MSSV] | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* |
+| 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Claude & GitHub Copilot** | **Hỗ trợ cú pháp Typed Schemas, MCP Server stdio & ReAct Orchestrator** |
+| 3 | [Họ tên SV 3 - MSSV] | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* | *(Để trống cho SV tự điền)* |
+
+---
+
+## 2. CHI TIẾT KHAI BÁO SỬ DỤNG AI CỦA TỪNG THÀNH VIÊN
 
 ### Thành viên: [Ca Ngọc Tân - 24110127] — Member A (RAG & Data Engineer) 
 * **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
@@ -113,30 +118,46 @@
 
 
 
-### Thành viên: [Họ và tên SV - MSSV] — Member A (RAG & Data Engineer)
-* **Công cụ sử dụng:** Antigravity AI Assistant / ChatGPT-4o
-* **Vị trí áp dụng:** File `src/rag/rag_pipeline.py` (Toàn bộ pipeline RAG, hàm `build_rag_prompt`, `search_chunks`, `rag_pipeline`, và hàm `main`)
-* **Prompt đã dùng:**
-  > *"Dựa trên bài tập RAG pipeline v1 (dùng Groq, VectorStore, Grounding Prompt, Evidence Trail) và cấu trúc đề tài T4 Điểm rèn luyện HCMUTE, hãy xây dựng file `src/rag/rag_pipeline.py` hoàn chỉnh: hỗ trợ cả Groq lẫn OpenAI qua .env, tìm kiếm lai Hybrid/Cosine, định dạng prompt trích dẫn Điều/Khoản, sinh Evidence Trail có score và hàm main() kiểm thử độc lập."*
-* **Đoạn code AI gợi ý ban đầu:**
-  ```python
-  def rag_pipeline(query, store, top_k=3, search_mode="hybrid"):
-      results = search_chunks(query, store, top_k=top_k, search_mode=search_mode)
-      if not results:
-          return {"answer": REFUSAL_MESSAGE, "sources": [], "messages": []}
-      chunks = [chunk for chunk, _ in results]
-      messages = build_rag_prompt(query, chunks)
-      response = client.chat.completions.create(model=selected_model, messages=messages, temperature=0.0)
-      sources = [{"source": c.metadata.get("source"), "dieu": c.metadata.get("dieu"), "score": score} for c, score in results]
-      return {"answer": response.choices[0].message.content, "sources": sources, "messages": messages}
-  ```
-* **Chỉnh sửa của sinh viên:**
-  1. Bản địa hóa system prompt sang tiếng Việt chuẩn quy chế ĐRL HCMUTE và cơ chế Calibration từ chối câu hỏi ngoài lề.
-  2. Bổ sung hỗ trợ kép linh hoạt cho cả Groq (`GROQ_API_KEY`) và OpenAI (`OPENAI_API_KEY`) với cơ chế fallback an toàn khi thiếu key.
-  3. Mở rộng truy xuất đa chế độ (`search_mode="hybrid"` hoặc `"cosine"`).
-  4. Bổ sung hàm `main()` nạp dữ liệu chunks thực tế và chạy kiểm thử 3 câu hỏi với định dạng Evidence Trail trực quan.
-* **Mức độ hiểu code:** 100% — Nắm vững luồng RAG, cách tính điểm tương đồng, định dạng prompt và sẵn sàng phản biện khi vấn đáp.
+
 
 ---
 
-<!-- Copy cấu trúc trên cho Thành viên 2 và Thành viên 3 -->
+### 🔵 Thành viên B: Lê Tuấn Thành — Agent & MCP Architect
+
+#### 📌 Hạng mục 1: Khai báo Typed Schemas (`src/mcp/schemas.py`)
+* **Tôi hỏi gì:** Gợi ý cú pháp khai báo `@dataclass` chuẩn Python cho các schema nộp và tra cứu khiếu nại.
+* **AI đã làm gì:** Gợi ý khung dataclass mẫu có type hint và cách xuất dictionary dùng hàm `asdict()`.
+* **Sinh viên tự làm & điều chỉnh:** Tự định nghĩa đúng các trường nghiệp vụ (`student_id`, `category`, `reason`), viết hàm validate dữ liệu rỗng và tinh gọn bỏ các class thừa để giữ code gọn gàng, đúng trọng tâm.
+* **Minh chứng:** [`src/mcp/schemas.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/mcp/schemas.py)
+
+---
+
+#### 📌 Hạng mục 2: Xây dựng MCP Server lưu trữ khiếu nại (`src/mcp/server.py`)
+* **Tôi hỏi gì:** Cú pháp đăng ký `@mcp.tool()` và kỹ thuật lưu file JSON an toàn trên tiến trình stdio.
+* **AI đã làm gì:** Gợi ý cấu trúc server FastMCP/MCPServer và kỹ thuật atomic write (ghi file tạm `.tmp` rồi đổi tên).
+* **Sinh viên tự làm & điều chỉnh:** Giới hạn đúng 2 công cụ cốt lõi (`submit_complaint`, `check_complaint_status`), chuyển hướng toàn bộ log sang `sys.stderr` để giữ sạch luồng stdout cho gói tin JSON-RPC, và tự viết logic sinh mã đơn tăng dần `CPL-YYYY-NNNN`.
+* **Minh chứng:** [`src/mcp/server.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/mcp/server.py)
+
+---
+
+#### 📌 Hạng mục 3: Vòng lặp ReAct Orchestrator & Xác minh dữ liệu (`src/orchestrator.py`)
+* **Tôi hỏi gì:** Hỗ trợ biểu thức chính quy (regex) bóc tách JSON và khung vòng lặp ReAct (Think - Act - Observe).
+* **AI đã làm gì:** Gợi ý regex trích xuất khối JSON từ phản hồi của LLM và cấu trúc vòng lặp `for step in range(MAX_STEPS)`.
+* **Sinh viên tự làm & điều chỉnh:** 
+  * Tự lập trình logic kiểm soát xác minh: Khi gọi tool nộp khiếu nại, bắt buộc phải gọi tool đọc để đối soát dữ liệu thật trong CSDL trước khi đưa ra câu trả lời cuối.
+  * Tự cài đặt cơ chế xử lý lỗi mềm để phản hồi lại ngữ cảnh cho LLM tự sửa sai nếu sinh JSON lỗi, tránh crash chương trình.
+  * Tinh gọn toàn bộ mã nguồn để dễ theo dõi và thuận tiện giải thích khi bảo vệ trực tiếp.
+* **Minh chứng:** [`src/orchestrator.py`](file:///c:/Users/LENOVO/Desktop/Study/AIPR%20Project%20Final/src/orchestrator.py)
+
+---
+
+### 🟣 Thành viên C: [Họ tên SV 3 - MSSV]
+*(Để trống cho SV tự điền)*
+
+---
+
+## 3. CAM KẾT LIÊM CHÍNH HỌC THUẬT
+
+1. Toàn bộ nội dung khai báo trên phản ánh trung thực quá trình làm việc trong dự án.
+2. Tự đọc hiểu, làm chủ 100% mã nguồn và sẵn sàng giải thích chi tiết trong buổi vấn đáp.
+3. Sử dụng AI làm công cụ hỗ trợ gợi ý cú pháp và tối ưu tốc độ, hoàn toàn làm chủ tư duy thuật toán và logic nghiệp vụ.
