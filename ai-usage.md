@@ -151,18 +151,32 @@
 
 ---
 
-### 🟣 Thành viên C: [Họ tên SV 3 - MSSV]
+### 🟣 Thành viên C: [Họ tên SV 3 - MSSV] — System Integrator & Evaluator
 
 #### 📌 Hạng mục 1: Xây dựng Robust LLM Client & Prompt Loader (`src/llm_client.py`)
-* **Tôi hỏi gì:** Hỗ trợ cú pháp đóng gói lớp `RobustLLMClient` kết nối Groq API theo phong cách Tuần 2, thuật toán Exponential Backoff tự động thử lại khi nghẽn mạng và cú pháp Mock test trong `unittest.mock`.
-* **AI đã làm gì:** Gợi ý khung try/except với `time.sleep(2 ** attempt)`, hàm `load_prompt` an toàn với Pathlib, và cấu trúc hàm test giả lập đối tượng phản hồi của Groq.
+* **Tôi hỏi gì:** Hướng dẫn viết hàm Exponential Backoff khi API lỗi mạng và tạo file unit test để kiểm tra tự động mà không tốn chi phí gọi API thật.
+* **AI đã làm gì:** 
+  * Gợi ý khung thử lại `time.sleep(2 ** attempt)` trong khối `try/except`.
+  * **Sinh toàn bộ mã nguồn file kiểm thử `tests/test_llm_client.py`**, sử dụng kỹ thuật giả lập (Mocking với `unittest.mock.MagicMock`) để mô phỏng phản hồi của Groq và tình huống API bị lỗi mạng/rate limit ở lần 1 rồi thành công ở lần 2.
 * **Sinh viên tự làm & điều chỉnh:**
-  1. Cấu hình kết nối trực tiếp với Groq API (`from groq import Groq`) và model `openai/gpt-oss-20b` đúng như bài tập đã học tại Tuần 2.
-  2. Bóc tách chính xác số liệu `usage` thật từ Groq (`prompt_tokens`, `completion_tokens`, `total_tokens`) để đáp ứng tiêu chí đo token thật của R-01.
-  3. Tự viết bộ kiểm thử trong `tests/test_llm_client.py` kiểm tra cả trường hợp thành công và trường hợp giả lập lỗi mạng để chứng minh cơ chế retry hoạt động độc lập.
+  1. Tự thiết kế và cài đặt class `RobustLLMClient` kết nối trực tiếp với Groq API (`from groq import Groq`) và model `openai/gpt-oss-20b` theo đúng kiến thức đã học tại Tuần 2.
+  2. Tự viết logic bóc tách token thật (`prompt_tokens`, `completion_tokens`, `total_tokens`) từ đối tượng response của Groq.
+  3. Đọc hiểu, làm chủ luồng chạy của file test do AI sinh, chạy lệnh `uv run pytest tests/test_llm_client.py` để xác minh và sẵn sàng giải thích cơ chế Mock khi giảng viên vấn đáp.
 * **Minh chứng:** [`src/llm_client.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/llm_client.py) và [`tests/test_llm_client.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_llm_client.py)
 
+---
 
+#### 📌 Hạng mục 2: Xây dựng Session & Usage Logger (`src/utils/logger.py`)
+* **Tôi hỏi gì:** Cú pháp sinh file log theo thời gian thực và tạo file unit test để kiểm tra việc ghi log JSON Lines.
+* **AI đã làm gì:** 
+  * Gợi ý cú pháp định dạng chuỗi `datetime.now().strftime(...)` và cấu trúc lớp `SessionLogger`.
+  * **Sinh toàn bộ mã nguồn file kiểm thử `tests/test_logger.py`**, sử dụng thư mục tạm `tempfile.TemporaryDirectory()` để kiểm tra việc ghi, đọc file log JSONL và kiểm tra tính toán chi phí token.
+* **Sinh viên tự làm & điều chỉnh:**
+  1. Kế thừa trực tiếp bảng giá `PRICING` và công thức tính chi phí từ bài tập Tuần 2, không cần AI sinh phần này.
+  2. Bổ sung trường `steps` để lưu vết đầy đủ chuỗi suy luận ReAct theo chuẩn yêu cầu R-01 của đồ án.
+  3. Tự đối soát và đồng bộ các tham số của hàm `log_record` để khớp hoàn toàn với lệnh gọi từ bộ điều phối `src/orchestrator.py`.
+  4. Đọc hiểu toàn bộ file test do AI sinh, chạy kiểm thử bằng `pytest`, kiểm tra tính toàn vẹn của dữ liệu tiếng Việt UTF-8 và làm chủ mã nguồn để bảo vệ đồ án.
+* **Minh chứng:** [`src/utils/logger.py`](file:///d:/AIPR-Final-Student-Policy-Agent/src/utils/logger.py) và [`tests/test_logger.py`](file:///d:/AIPR-Final-Student-Policy-Agent/tests/test_logger.py)
 
 ---
 
