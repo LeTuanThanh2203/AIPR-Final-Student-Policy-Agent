@@ -35,7 +35,7 @@ make test
 
 Hệ thống MCP Server chạy qua giao thức `stdio` , đảm bảo kênh `stdout` cho JSON-RPC và cung cấp các công cụ cho chu trình suy luận ReAct:
 
-1. **`lookup_policy(query: str)` [ĐỌC - RAG Tra cứu Quy chế]:** Tra cứu quy định, điều khoản, bảng tiêu chí và mức điểm rèn luyện theo quy chế HCMUTE (Tầng a & Tầng b - R-05). Tự động kết nối module Hybrid Search (Dense Cosine + Sparse BM25) và có cơ chế Fallback tức thời sang BM25 Okapi khi gặp lỗi embedding.
+1. **`lookup_policy(query: str, version: str = "latest")` [ĐỌC - RAG Tra cứu Quy chế]:** Tra cứu quy định, điều khoản, bảng tiêu chí và mức điểm rèn luyện theo quy chế HCMUTE (Tầng a & Tầng b - R-05). Hỗ trợ tham số `version` (mặc định `'latest'` để tự động chọn phiên bản quy chế mới nhất - 2024; hoặc chỉ định `'2024'`, `'2022'`, `'all'` để phục vụ tra cứu chuyên sâu và so sánh xung đột phiên bản). Tự động kết nối module Hybrid Search (Dense Cosine + Sparse BM25) và có cơ chế Fallback tức thời sang BM25 Okapi khi gặp lỗi embedding.
 2. **`submit_complaint(student_id, category, reason, evidence="")` [GHI - Side Effect]:** Tiếp nhận đơn khiếu nại điểm rèn luyện, kiểm tra tham số qua Typed Schema `@dataclass`, tự động sinh mã nghiệp vụ định dạng `CPL-YYYY-NNNN` theo năm UTC và lưu an toàn vào `data/complaints.json` bằng UTF-8 (Tầng c - R-07).
 3. **`check_complaint_status(complaint_id)` [ĐỌC - BẮT BUỘC VERIFY]:** Tra cứu trạng thái đơn khiếu nại từ đĩa để đối soát xác minh dữ liệu đã được ghi nhận thật trong file JSON ngay trong phiên chạy (Tầng c - R-07).
 

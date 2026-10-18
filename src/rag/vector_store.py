@@ -115,14 +115,19 @@ class VectorStore(DocumentStore):
         self.chunks[chunk.chunk_id] = chunk
         return chunk.chunk_id
     def search(
-        self, query: str, top_k: int = 3, min_score: float = 0.0
+        self,
+        query: str,
+        top_k: int = 3,
+        min_score: float = 0.0,
+        candidates: Optional[List[DocumentChunk]] = None,
     ) -> List[Tuple[DocumentChunk, float]]:
         """Tìm kiếm tương đồng Cosine Similarity giữa câu query và các đoạn trích."""
-        if not self.chunks:
+        chunk_pool = candidates if candidates is not None else list(self.chunks.values())
+        if not chunk_pool:
             return []
         query_emb = embed_query(query)
         scored_chunks: List[Tuple[DocumentChunk, float]] = []
-        for chunk in self.chunks.values():
+        for chunk in chunk_pool:
             if chunk.embedding is None:
                 continue
             sim = cosine_similarity(query_emb, chunk.embedding)

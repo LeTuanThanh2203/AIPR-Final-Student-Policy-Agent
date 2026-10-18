@@ -97,9 +97,10 @@ def load_document(path: Union[str, Path], title: str = "") -> Document:
 
 
 def build_rag_prompt(question: str, chunks: List[DocumentChunk]) -> List[Dict[str, str]]:
-    """Tạo messages cho LLM kèm trích dẫn số thứ tự, nguồn và điều khoản."""
+    """Tạo messages cho LLM kèm trích dẫn số thứ tự, nguồn, phiên bản và điều khoản."""
     context_text = "\n\n".join(
         f"[{i + 1}] (Source: {c.metadata.get('source', c.doc_id or 'unknown')}, "
+        f"Phiên bản: {c.version or c.metadata.get('version', 'unknown')}, "
         f"Điều/Tiêu chí: {c.metadata.get('dieu', c.metadata.get('tieu_chi', c.metadata.get('section', 'unknown')))}, "
         f"Tiêu đề: {c.metadata.get('title', 'unknown')})\n"
         f"{c.content}"
@@ -121,28 +122,108 @@ def build_rag_prompt(question: str, chunks: List[DocumentChunk]) -> List[Dict[st
 # -----------------------------------------------------------------------------
 # 4. TRUY XUẤT CHUNKS & RAG PIPELINE
 # -----------------------------------------------------------------------------
+def filter_chunks_by_version(
+    chunks: List[DocumentChunk],
+    version: Optional[str] = "latest",
+) -> List[DocumentChunk]:
+    """Lọc danh sách DocumentChunk theo phiên bản quy chế.
+    
+    - 'latest' (mặc định): Tự động chọn phiên bản quy chế mới nhất (năm cao nhất, ví dụ: 2024).
+    - 'all' hoặc '*': Không lọc, lấy toàn bộ các phiên bản.
+    - '<tên_phiên_bản>': Lọc theo phiên bản tương ứng ('2024', '2022', 'main'...).
+    """
+    if not chunks:
+        return []
+
+    if not version or version.strip().lower() in ("all", "*"):
+        return chunks
+
+    target = version.strip().lower()
+
+    if target == "latest":
+        # Xác định năm quy chế mới nhất
+        valid_years: List[int] = []
+        for c in chunks:
+            if c.version_year is not None:
+                valid_years.append(c.version_year)
+            elif c.version and c.version.isdigit():
+                valid_years.append(int(c.version))
+            elif c.metadata and c.metadata.get("version_year") is not None:
+                try:
+                    valid_years.append(int(c.metadata["version_year"]))
+                except (ValueError, TypeError):
+                    pass
+            elif c.metadata and str(c.metadata.get("version", "")).isdigit():
+                try:
+                    valid_years.append(int(c.metadata["version"]))
+                except (ValueError, TypeError):
+                    pass
+
+        if valid_years:
+            latest_year = max(valid_years)
+            filtered = [
+                c for c in chunks
+                if (c.version_year == latest_year)
+                or (c.version == str(latest_year))
+                or (c.metadata.get("version_year") == latest_year)
+                or (str(c.metadata.get("version", "")) == str(latest_year))
+            ]
+            if filtered:
+                return filtered
+        return chunks
+
+    # Lọc theo phiên bản cụ thể
+    filtered = [
+        c for c in chunks
+        if (c.version.lower() == target)
+        or (str(c.version_year or "").lower() == target)
+        or (c.metadata.get("version", "").lower() == target)
+        or (str(c.metadata.get("version_year", "")).lower() == target)
+        or (f"_v{target}" in c.doc_id.lower())
+    ]
+    return filtered if filtered else chunks
+
+
 def search_chunks(
-    query: str, store: VectorStore, top_k: int = 3, search_mode: str = "hybrid"
+    query: str,
+    store: VectorStore,
+    top_k: int = 3,
+    search_mode: str = "hybrid",
+    version: Optional[str] = "latest",
 ) -> List[Tuple[DocumentChunk, float]]:
-    """Truy xuất các chunks tương đồng theo chế độ 'cosine' hoặc 'hybrid' (BM25 + Cosine)."""
+    """Truy xuất các chunks tương đồng theo chế độ 'cosine' hoặc 'hybrid' (BM25 + Cosine).
+    
+    Hỗ trợ lọc theo phiên bản tài liệu (mặc định 'latest').
+    """
     if not store.chunks:
         return []
 
+    # Lọc chunks theo phiên bản trước khi tìm kiếm
+    candidate_chunks = filter_chunks_by_version(list(store.chunks.values()), version=version)
+    if not candidate_chunks:
+        candidate_chunks = list(store.chunks.values())
+
     if search_mode == "cosine":
-        return store.search(query, top_k=top_k)
+        return store.search(query, top_k=top_k, candidates=candidate_chunks)
 
-    # Chế độ Hybrid: BM25 + Vector Cosine
-    chunks_list = list(store.chunks.values())
-    bm25_idx = build_bm25_index(chunks_list)
-    embeddings = [c.embedding if c.embedding is not None else [] for c in chunks_list]
-
-    return hybrid_search(
-        query=query,
-        chunks=chunks_list,
-        bm25_index=bm25_idx,
-        embeddings=embeddings,
-        top_k=top_k,
-    )
+    # Chế độ Hybrid: BM25 + Vector Cosine (Tự động fallback BM25 nếu lỗi embedding)
+    try:
+        bm25_idx = build_bm25_index(candidate_chunks)
+        embeddings = [c.embedding if c.embedding is not None else [] for c in candidate_chunks]
+        return hybrid_search(
+            query=query,
+            chunks=candidate_chunks,
+            bm25_index=bm25_idx,
+            embeddings=embeddings,
+            top_k=top_k,
+        )
+    except Exception:
+        bm25_idx = build_bm25_index(candidate_chunks)
+        query_tokens = query.lower().split()
+        scores = bm25_idx.get_scores(query_tokens)
+        scored = [(candidate_chunks[i], float(scores[i])) for i in range(len(candidate_chunks))]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return scored[:top_k]
 
 
 def rag_pipeline(
@@ -151,16 +232,17 @@ def rag_pipeline(
     top_k: int = 3,
     search_mode: str = "hybrid",
     model: Optional[str] = None,
+    version: Optional[str] = "latest",
 ) -> Dict[str, Any]:
     """Quy trình RAG tiêu chuẩn hoàn chỉnh:
-    1. Tìm kiếm chunks qua VectorStore (hỗ trợ cosine hoặc hybrid).
+    1. Tìm kiếm chunks qua VectorStore có lọc theo version (mặc định 'latest').
     2. Áp dụng Calibration Check (từ chối câu bẫy/ngoài phạm vi nếu không có kết quả).
     3. Định dạng Messages kèm Evidence Context.
     4. Gọi LLM sinh câu trả lời có trích dẫn.
     5. Đóng gói kết quả dạng Dict gồm answer, sources (Evidence Trail) và messages.
     """
     # 1. Truy xuất dữ liệu
-    results = search_chunks(query, store, top_k=top_k, search_mode=search_mode)
+    results = search_chunks(query, store, top_k=top_k, search_mode=search_mode, version=version)
 
     # 2. Calibration Check: Nếu rỗng hoặc không có kết quả
     if not results:
@@ -169,6 +251,7 @@ def rag_pipeline(
             "sources": [],
             "messages": [],
             "results": [],
+            "version": version,
         }
 
     chunks = [chunk for chunk, _ in results]
@@ -202,7 +285,7 @@ def rag_pipeline(
         # Khi chưa có API Key, phản hồi thông báo thân thiện
         answer_text = (
             f"[Mô phỏng RAG - Chưa phát hiện GROQ_API_KEY hoặc OPENAI_API_KEY trong .env]\n"
-            f"Đã tìm thấy {len(chunks)} đoạn quy chế liên quan để trả lời cho câu hỏi: '{query}'."
+            f"Đã tìm thấy {len(chunks)} đoạn quy chế (phiên bản: {version}) liên quan để trả lời cho câu hỏi: '{query}'."
         )
 
     # 4. Định dạng danh sách nguồn minh chứng (Evidence Trail)
@@ -215,6 +298,8 @@ def rag_pipeline(
             "dieu": metadata.get("dieu", "unknown"),
             "section": metadata.get("section", metadata.get("title", "unknown")),
             "type": metadata.get("type", "policy"),
+            "version": chunk.version or metadata.get("version", ""),
+            "version_year": chunk.version_year or metadata.get("version_year"),
             "score": score,
             "content": chunk.content,
         })
@@ -224,6 +309,7 @@ def rag_pipeline(
         "sources": sources,
         "messages": messages,
         "results": results,
+        "version": version,
     }
 
 

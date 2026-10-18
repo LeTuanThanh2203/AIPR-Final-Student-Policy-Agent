@@ -18,7 +18,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -97,19 +97,15 @@ def get_rag_store() -> Any:
         except Exception as err:
             log_debug(f"Lỗi khi đọc file chunks {chunks_path}: {err}")
     else:
-        # Nếu chưa có chunks.json, kiểm tra nếu có file text nguồn HTRL.txt để parse
-        htrl_path = PROJECT_ROOT / "HTRL.txt"
-        if htrl_path.exists():
-            try:
-                from src.rag.document_parser import parse_and_chunk_documents
-                parsed_chunks = parse_and_chunk_documents(str(htrl_path), str(chunks_path))
-                for c in parsed_chunks:
-                    store.chunks[c.chunk_id] = c
-                log_debug(f"Đã tự động parse {len(parsed_chunks)} chunks từ {htrl_path}")
-            except Exception as err:
-                log_debug(f"Không thể tự động parse từ {htrl_path}: {err}")
-        else:
-            log_debug(f"Chưa tìm thấy file dữ liệu chunks tại {chunks_path}")
+        # Nếu chưa có chunks.json, tự động gọi parse_and_chunk_documents()
+        try:
+            from src.rag.document_parser import parse_and_chunk_documents
+            parsed_chunks = parse_and_chunk_documents()
+            for c in parsed_chunks:
+                store.chunks[c.chunk_id] = c
+            log_debug(f"Đã tự động parse {len(parsed_chunks)} chunks quy chế từ các phiên bản")
+        except Exception as err:
+            log_debug(f"Không thể tự động parse chunks: {err}")
 
     _rag_store = store
     return _rag_store
@@ -120,10 +116,15 @@ def get_rag_store() -> Any:
 # ==============================================================================
 
 @mcp.tool()
-def lookup_policy(query: str) -> str:
-    """Tool Đọc: Tra cứu quy định, điều khoản, tiêu chí và mức điểm rèn luyện theo quy chế (Tầng a & Tầng b - R-05)."""
+def lookup_policy(query: str, version: Optional[str] = "latest") -> str:
+    """Tool Đọc: Tra cứu quy định, điều khoản, tiêu chí và mức điểm rèn luyện theo quy chế (Tầng a & Tầng b - R-05).
+    
+    Tham số:
+    - query (str): Nội dung, câu hỏi hoặc từ khóa cần tra cứu trong quy chế điểm rèn luyện.
+    - version (str, optional): Phiên bản tài liệu quy chế cần tra cứu (mặc định 'latest' để chọn bản mới nhất, hoặc '2024', '2022', 'all').
+    """
     try:
-        inp = LookupPolicyInput(query=query)
+        inp = LookupPolicyInput(query=query, version=version)
     except Exception as err:
         return json.dumps({"status": "error", "message": f"Dữ liệu không hợp lệ: {err}"}, ensure_ascii=False)
 
@@ -131,63 +132,24 @@ def lookup_policy(query: str) -> str:
         store = get_rag_store()
         from src.rag.rag_pipeline import rag_pipeline
 
-        try:
-            # Gọi RAG pipeline chuẩn của Tân (Hybrid BM25 + Cosine)
-            rag_res = rag_pipeline(inp.query, store, top_k=3, search_mode="hybrid")
-        except Exception as search_err:
-            log_debug(f"Hybrid search gặp lỗi ({search_err}), chuyển sang dự phòng BM25...")
-            from src.rag.hybrid_search import build_bm25_index
-            chunks_list = list(store.chunks.values())
-            if chunks_list:
-                bm25_idx = build_bm25_index(chunks_list)
-                query_tokens = inp.query.lower().split()
-                scores = bm25_idx.get_scores(query_tokens)
-                scored = [(chunks_list[i], float(scores[i])) for i in range(len(chunks_list))]
-                scored.sort(key=lambda x: x[1], reverse=True)
-                top_chunks = scored[:3]
-                rag_res = {
-                    "answer": f"Đã tìm thấy {len(top_chunks)} đoạn quy chế phù hợp qua BM25.",
-                    "sources": [
-                        {
-                            "source": c.metadata.get("source", c.doc_id or "unknown"),
-                            "dieu": c.metadata.get("dieu", "unknown"),
-                            "title": c.metadata.get("title", "unknown"),
-                            "content": c.content,
-                            "score": score,
-                        }
-                        for c, score in top_chunks
-                    ],
-                }
-            else:
-                rag_res = {
-                    "answer": "Thông tin này không có trong quy chế điểm rèn luyện được cung cấp.",
-                    "sources": [],
-                }
-
-        sources = [
-            {
-                "source": s.get("source", ""),
-                "dieu": s.get("dieu", ""),
-                "title": s.get("title", ""),
-                "content": s.get("content", ""),
-                "score": s.get("score", 0.0),
-            }
-            for s in rag_res.get("sources", [])
-        ]
+        rag_res = rag_pipeline(inp.query, store, top_k=3, search_mode="hybrid", version=inp.version)
+        sources = rag_res.get("sources", [])
 
         output = {
             "status": "success" if sources else "not_found",
             "query": inp.query,
+            "version": inp.version,
             "answer": rag_res.get("answer", ""),
             "sources": sources,
         }
-        log_debug(f"lookup_policy thành công cho query='{inp.query}' - tìm thấy {len(sources)} căn cứ")
+        log_debug(f"lookup_policy thành công cho query='{inp.query}' (version={inp.version}) - tìm thấy {len(sources)} căn cứ")
         return json.dumps(output, ensure_ascii=False)
     except Exception as err:
         log_debug(f"Lỗi khi thực thi lookup_policy cho query='{query}': {err}")
         return json.dumps({
             "status": "error",
             "query": query,
+            "version": version or "latest",
             "message": f"Lỗi khi tra cứu quy chế: {err}",
             "answer": "Không thể tra cứu quy chế do lỗi hệ thống RAG.",
             "sources": [],
