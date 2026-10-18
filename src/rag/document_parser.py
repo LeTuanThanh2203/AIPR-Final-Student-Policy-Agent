@@ -153,11 +153,11 @@ def extract_articles(
         chunk_index = start_index + len(chunks) + 1
 
         chunk = DocumentChunk(
-            chunk_id=(
-                f"{doc_id}_D{article_number.zfill(2)}"
-            ),
+            chunk_id=f"{doc_id}_D{article_number.zfill(2)}",
             doc_id=doc_id,
             chunk_index=chunk_index,
+            version=version,
+            version_year=make_version_year(version),
             content=content,
             metadata={
                 "doc_id": doc_id,
@@ -241,6 +241,8 @@ def extract_appendix_criteria(
             chunk_id=f"{doc_id}_PL1_TC{roman}",
             doc_id=doc_id,
             chunk_index=chunk_index,
+            version=version,
+            version_year=make_version_year(version),
             content=(
                 f"[Phiên bản {version} - "
                 f"Phụ lục 1 - {criterion_title}]\n"
