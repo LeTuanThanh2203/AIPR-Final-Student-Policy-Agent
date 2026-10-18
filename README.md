@@ -12,14 +12,23 @@ Hệ thống AI Agent hỗ trợ tra cứu quy chế, tính điểm rèn luyện
 cp .env.example .env
 
 # 2. Cài đặt môi trường và chạy thử bằng 1 lệnh duy nhất (R-01)
+# (make setup đã tự động gọi src/rag/document_parser.py để sinh data/processed/chunks.json)
 make setup && make demo
 
 # 3. Đánh giá tự động trên bộ kiểm thử 16 câu hỏi (Tầng a, b, c & Calibration)
 make eval
 
-# 4. Chạy toàn bộ 12 unit tests
+# 4. Chạy toàn bộ 14 unit tests
 make test
 ```
+
+>  **File chạy Chunking dữ liệu (`chunks.json` ):**  
+> Để chạy riêng bước đọc văn bản quy chế trong `data/raw/` và trích xuất logical chunking theo Điều/Khoản:
+> ```bash
+> python src/rag/document_parser.py
+> # hoặc chạy qua uv:
+> uv run python src/rag/document_parser.py
+> ```
 
 ---
 
@@ -27,9 +36,9 @@ make test
 
 | Thành viên | Vai trò cốt lõi | File phụ trách chính | Yêu cầu kỹ thuật & Kiến thức tuần liên quan |
 | :---: | :--- | :--- | :--- |
-| **🟢 Ca Ngọc Tân** | **RAG & Data Engineer** | `src/rag/document_parser.py`<br>`src/rag/vector_store.py`<br>`src/rag/hybrid_search.py`<br>`src/rag/rag_pipeline.py` | **R-05**: Logical chunking theo Điều/Khoản, VectorStore Cosine NumPy (W3), Hybrid BM25 + Cosine (W4), và Calibration threshold để từ chối câu ngoài lề. |
-| **🔵 Lê Tuấn Thành** | **Agent & MCP Architect** | `src/mcp/schemas.py`<br>`src/mcp/server.py`<br>`src/mcp/client.py`<br>`src/orchestrator.py` | **R-02, R-03, R-06, R-07, R-08**: Schemas `@dataclass` (W1), MCP Tools (W7 stdio), Vòng lặp ReAct tự viết tay (W6), cơ chế an toàn và BẮT BUỘC VERIFY sau khi ghi. |
-| **🟣 Phạm Phước Anh** | **System Integrator & Evaluator** | `src/llm_client.py`<br>`src/utils/logger.py`<br>`src/main.py`<br>`tests/testset.jsonl`<br>`tests/test_agent.py`<br>`tests/test_llm_client.py`<br>`tests/test_logger.py` | **R-01, R-04**: Wrapper gọi LLM API với Exponential Backoff & Timeout (W2), log lỗi HTTP, System Prompts file ngoài, Logger JSONL đo token thật từ API, CLI tương tác Rich, bộ testset & runner `make eval`, bộ 12 unit tests. |
+| **Ca Ngọc Tân** | **RAG & Data Engineer** | `src/rag/document_parser.py`<br>`src/rag/vector_store.py`<br>`src/rag/hybrid_search.py`<br>`src/rag/rag_pipeline.py` | **R-05**: Logical chunking theo Điều/Khoản (chạy file `document_parser.py` để sinh `chunks.json`), VectorStore Cosine NumPy (W3), Hybrid BM25 + Cosine (W4), và Calibration threshold để từ chối câu ngoài lề. |
+| **Lê Tuấn Thành** | **Agent & MCP Architect** | `src/mcp/schemas.py`<br>`src/mcp/server.py`<br>`src/mcp/client.py`<br>`src/orchestrator.py` | **R-02, R-03, R-06, R-07, R-08**: Schemas `@dataclass` (W1), MCP Tools (W7 stdio), Vòng lặp ReAct tự viết tay (W6), cơ chế an toàn và BẮT BUỘC VERIFY sau khi ghi. |
+| **Phạm Phước Anh** | **System Integrator & Evaluator** | `src/llm_client.py`<br>`src/utils/logger.py`<br>`src/main.py`<br>`tests/testset.jsonl`<br>`tests/test_agent.py`<br>`tests/test_llm_client.py`<br>`tests/test_logger.py` | **R-01, R-04**: Wrapper gọi LLM API với Exponential Backoff & Timeout (W2), log lỗi HTTP, System Prompts file ngoài, Logger JSONL đo token thật từ API, CLI tương tác Rich, bộ testset & runner `make eval`, bộ 14 unit tests. |
 
 ## 3. Hệ thống 3 MCP Tools cho Đề tài  (`src/mcp/server.py`)
 
@@ -40,18 +49,6 @@ Hệ thống MCP Server chạy qua giao thức `stdio` , đảm bảo kênh `std
 3. **`check_complaint_status(complaint_id)` [ĐỌC - BẮT BUỘC VERIFY]:** Tra cứu trạng thái đơn khiếu nại từ đĩa để đối soát xác minh dữ liệu đã được ghi nhận thật trong file JSON ngay trong phiên chạy (Tầng c - R-07).
 
 > 💡 **Lưu ý về Tầng b (Transform - Tính toán & Áp trần):** Logic tính tổng điểm rèn luyện và áp mức trần tối đa theo từng Điều/Tiêu chí quy chế được ReAct Agent thực thi suy luận chuẩn xác dựa trên căn cứ quy định trích xuất từ công cụ `lookup_policy`.
-
----
-
-## 4. Hybrid Search (W4) & Kỹ năng Calibration (PDF 01)
-
-- **Hybrid Search (`src/rag/hybrid_search.py`):**  Kết hợp tìm kiếm ngữ nghĩa Dense (Vector Cosine Similarity trên NumPy) và tìm kiếm từ khóa Sparse (BM25 Okapi) theo trọng số:
-  $$\text{Score}_{hybrid} = 0.3 \times \text{Score}_{BM25} + 0.7 \times \text{Score}_{Cosine}$$
-  *(Lưu ý: Không có hàm code nào tên là `calibration` trong RAG).*
-- **Calibration ():** Là cơ chế **"biết khi nào KHÔNG trả lời" (Say "I don't know")** nhằm chống ảo giác (hallucination):
-  - Khi gặp câu hỏi bẫy hoặc ngoài quy chế (`no_answer: true` trong testset như hỏi về rank game, phim Marvel, đổi bằng lái xe), tài liệu truy xuất sẽ không có câu trả lời.
-  - System Prompt và logic kiểm soát context yêu cầu Agent từ chối lịch sự: *"Thông tin này không có trong quy chế điểm rèn luyện"*.
-  - Bộ kiểm thử `tests/test_agent.py` khi chạy `make eval` sẽ đo lường **Tỉ lệ từ chối đúng (Calibration Rate $\ge 80\%$)** trên 4 câu `no_answer`.
 
 ---
 
