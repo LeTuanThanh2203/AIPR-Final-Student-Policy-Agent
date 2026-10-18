@@ -9,7 +9,7 @@
 | STT | Thành viên | Vai trò phụ trách | Công cụ AI | Phạm vi áp dụng chính |
 | :---: | :--- | :--- | :--- | :--- |
 | 1 | **Ca Ngọc Tân** | **RAG và Data Engineer** | **Antigravity** | **AI hỗ trợ sinh mã nguồn xử lý và phân đoạn văn bản, triển khai Hybrid Search và tích hợp cơ chế Calibration trong RAG Pipeline** |
-| 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Antigravity AI Assistant (Gemini 3.8 Flash High)** | **Typed Schemas (@dataclass), MCP Server stdio (stdout sạch 100%), Dynamic Tool Discovery (mcp SDK), Fallback BM25 Okapi, bộ parse Action đa định dạng và ThreadPool async bridge (src/mcp/, src/orchestrator.py). *Vòng lặp ReAct tự viết tay 100%.* |
+| 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Antigravity AI Assistant (Gemini 3.8 Flash High)** | **Typed Schemas (@dataclass) hỗ trợ Policy Versioning (2022 vs 2024), MCP Server stdio (stdout sạch 100%), Dynamic Tool Discovery (mcp SDK), Tool lookup_policy lọc version & Fallback BM25 Okapi, cơ chế cưỡng chế Verify Tầng c (pending_verification_cid), bộ parse Action an toàn 2 tầng (R-06) và ThreadPool async bridge (run_sync). *Vòng lặp ReAct tự viết tay 100%.* |
 | 3 | **Phạm Phước Anh** | **System Integrator & Evaluator** | **ChatGPT & Antigravity AI Assistant** | **4 câu hỏi đánh đố bổ sung (Q11-Q14) trong testset và nội dung phản biện thêm vào Prompt do sinh viên tự lên ý tưởng, tự viết và dùng ChatGPT tinh chỉnh câu chữ; AI hỗ trợ sinh mã nguồn kịch bản đánh giá tự động đa tầng (tests/test_agent.py), Exponential Backoff (src/llm_client.py, tests/test_llm_client.py), Session Logger & chi phí USD (src/utils/logger.py, tests/test_logger.py), giao diện CLI Rich tương tác (src/main.py).** |
 
 
@@ -125,19 +125,17 @@
 
 ### Thành viên: [Lê Tuấn Thành] — Member B (Agent & MCP Architect)
 
-> ⚠️ **Cam kết tuân thủ Yêu cầu R-02 (PDF 02 §2.2):**  
-> Toàn bộ logic **Vòng lặp Agent ReAct (`react_agent` và `ReActOrchestrator`)** gồm chu trình suy luận *Think -> Act -> Observe*, cơ chế bóc tách Action đa định dạng (`parse_reply`), khống chế `MAX_STEPS = 10` (R-06), bắt lỗi mềm tự sửa sai, và **bộ kiểm soát bắt buộc đối soát Verify Tầng c (`pending_verification_cid` - R-07)** là do **sinh viên tự tay lập trình 100% bằng Python thuần** (CẤM dùng LangChain/CrewAI, không sử dụng AI sinh vòng lặp này). Sinh viên hoàn toàn làm chủ từng dòng lệnh và sẵn sàng vấn đáp, sửa code trực tiếp tại chỗ theo yêu cầu của Giảng viên.  
-> Dưới đây là bảng khai báo minh bạch 7 hạng mục kỹ thuật chuyên sâu thuộc gói Model Context Protocol (`src/mcp/`) và các module hỗ trợ suy luận (`src/orchestrator.py`) có tham khảo trợ lý AI để sinh mã nền tảng:
+
 
 * **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
-  **Vị trí áp dụng:** Toàn bộ file [src/mcp/schemas.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/schemas.py) (Dòng 16 đến dòng 181), bao gồm các class `SubmitComplaintInput`, `SubmitComplaintOutput`, `CheckComplaintInput`, `LookupPolicyInput`, `ComplaintRecord`.
+  **Vị trí áp dụng:** Toàn bộ file [src/mcp/schemas.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/schemas.py) (Dòng 16 đến dòng 191), bao gồm các class `SubmitComplaintInput`, `SubmitComplaintOutput`, `CheckComplaintInput`, `LookupPolicyInput`, `ComplaintRecord`.
 * **Prompt chính đã dùng:**
-  > *Dựa trên yêu cầu bắt buộc R-03 (PDF 02 §2.3) và bài học Tuần 1, hãy viết các Typed Schemas bằng `@dataclass` Python (nghiêm cấm dùng dict thô để vượt qua kiểm tra `grep -n "@dataclass"`) cho các công cụ MCP đề tài T4: nộp khiếu nại `submit_complaint`, tra cứu trạng thái đơn `check_complaint_status`, và tra cứu quy chế `lookup_policy`. Tích hợp classmethod `model_json_schema` dùng `pydantic.TypeAdapter(cls).json_schema()` theo bài học Tuần 6 để trích xuất JSON Schema cho LLM, đồng thời viết hàm kiểm tra dữ liệu đầu vào không được để trống trong `__post_init__`.*
+  > *Dựa trên yêu cầu bắt buộc R-03 (PDF 02 §2.3) và bài học Tuần 1, hãy viết các Typed Schemas bằng `@dataclass` Python (nghiêm cấm dùng dict thô để vượt qua kiểm tra `grep -n "@dataclass"`) cho các công cụ MCP đề tài T4: nộp khiếu nại `submit_complaint`, tra cứu trạng thái đơn `check_complaint_status`, và tra cứu quy chế `lookup_policy`. Đặc biệt, `LookupPolicyInput` phải có thêm tham số `version: Optional[str] = "latest"` để phục vụ cơ chế Policy Versioning (chọn bản quy chế mới nhất hoặc chỉ định bản cũ 2022/2024 để so sánh mâu thuẫn chính sách Tầng b). Tích hợp classmethod `model_json_schema` dùng `pydantic.TypeAdapter(cls).json_schema()` theo bài học Tuần 6 để trích xuất JSON Schema cho LLM, đồng thời viết hàm kiểm tra dữ liệu đầu vào không được để trống trong `__post_init__`.*
 
 * **Đoạn code do AI hỗ trợ sinh:**
   ```python
   from dataclasses import asdict, dataclass, field
-  from typing import Any, Dict
+  from typing import Any, Dict, Optional
   from pydantic import TypeAdapter
 
   def _require_non_empty(name: str, value: Any) -> str:
@@ -167,24 +165,37 @@
       def model_json_schema(cls) -> Dict[str, Any]:
           return TypeAdapter(cls).json_schema()
 
+  @dataclass
+  class LookupPolicyInput:
+      query: str
+      version: Optional[str] = "latest"
+
+      def __post_init__(self) -> None:
+          self.query = _require_non_empty("query", self.query)
+          if self.version is None:
+              self.version = "latest"
+          elif not isinstance(self.version, str):
+              raise TypeError(f"Trường 'version' phải là kiểu str, nhận: {type(self.version).__name__}")
+          else:
+              self.version = self.version.strip() or "latest"
+
+      def to_dict(self) -> Dict[str, Any]:
+          return asdict(self)
+
       @classmethod
-      def from_dict(cls, data: Dict[str, Any]) -> SubmitComplaintInput:
-          return cls(
-              student_id=data.get("student_id", ""),
-              category=data.get("category", ""),
-              reason=data.get("reason", ""),
-              evidence=data.get("evidence", ""),
-          )
+      def model_json_schema(cls) -> Dict[str, Any]:
+          return TypeAdapter(cls).json_schema()
   ```
 
 * **Tinh chỉnh và hoàn thiện của sinh viên:**
   1. Dùng `pydantic.TypeAdapter(cls).json_schema()` xuất schema động chuẩn OpenAPI cho LLM mà vẫn giữ `@dataclass` thuần để vượt qua kiểm tra R-03 (`grep -n "@dataclass"`).
-  2. Tự viết hàm `_require_non_empty` trong `__post_init__` để chặn triệt để tham số rỗng hoặc sai kiểu từ LLM.
-  3. Bổ sung classmethod `from_dict` chống lỗi thiếu trường và tách riêng model CSDL `ComplaintRecord` kèm mốc thời gian UTC ISO 8601.
+  2. Tự thiết kế tham số `version: Optional[str] = "latest"` trong `LookupPolicyInput` và kiểm tra kiểu nghiêm ngặt trong `__post_init__`: nếu LLM truyền `None` hoặc khoảng trắng, tự động chuẩn hóa về `"latest"` để ưu tiên quy chế mới nhất (2024), giải quyết bài toán Policy Versioning của Tầng b (PDF 01).
+  3. Tự viết hàm `_require_non_empty` chặn triệt để tham số rỗng hoặc sai kiểu từ LLM.
+  4. Bổ sung classmethod `from_dict` chống lỗi thiếu trường và tách riêng model CSDL `ComplaintRecord` kèm mốc thời gian UTC ISO 8601.
 
 
 * **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
-  **Vị trí áp dụng:** Khởi tạo `MCPServer`, hàm `log_debug`, `load_complaints`, `save_complaints`, và tool `@mcp.tool() submit_complaint` trong [src/mcp/server.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/server.py) (Dòng 41 đến dòng 70 và dòng 197 đến dòng 241).
+  **Vị trí áp dụng:** Khởi tạo `MCPServer`, hàm `log_debug`, `load_complaints`, `save_complaints`, và tool `@mcp.tool() submit_complaint` trong [src/mcp/server.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/server.py) (Dòng 41 đến dòng 70 và dòng 150 đến dòng 195).
 * **Prompt chính đã dùng:**
   > *Xây dựng MCP Server bằng Python qua giao thức stdio (sử dụng MCPServer theo Tuần 7 và R-08). Thiết lập hàm log_debug chuyển hướng toàn bộ thông báo ra sys.stderr để bảo đảm stdout sạch 100% (không phá vỡ gói tin JSON-RPC stdio). Cài đặt tool Ghi Side-Effect `submit_complaint(student_id, category, reason, evidence)`: kiểm tra tham số bằng Typed Schema SubmitComplaintInput, tự động sinh mã khiếu nại nghiệp vụ tăng dần CPL-YYYY-NNNN theo năm hiện tại, và lưu an toàn vào file data/complaints.json bằng UTF-8.*
 
@@ -220,37 +231,53 @@
 
 
 * **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
-  **Vị trí áp dụng:** Hàm `get_rag_store`, tool `@mcp.tool() lookup_policy`, và tool `@mcp.tool() check_complaint_status` trong [src/mcp/server.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/server.py) (Dòng 78 đến dòng 195 và dòng 243 đến dòng 265).
+  **Vị trí áp dụng:** Hàm `get_rag_store`, tool `@mcp.tool() lookup_policy`, và tool `@mcp.tool() check_complaint_status` trong [src/mcp/server.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/mcp/server.py) (Dòng 78 đến dòng 148 và dòng 197 đến dòng 210).
 * **Prompt chính đã dùng:**
-  > *Viết tool MCP Đọc `lookup_policy(query: str)` kết nối trực tiếp với module RAG để tra cứu quy chế điểm rèn luyện (Tầng a, b - R-05), và tool `check_complaint_status(complaint_id: str)` để đối soát đơn (Tầng c - R-07). Thiết kế hàm singleton nạp trước kho dữ liệu VectorStore từ data/processed/chunks.json để không bị nạp lại đĩa ở mỗi request. Quan trọng: nếu module RAG Dense/Hybrid gặp lỗi embedding hoặc quá tải mô hình, hãy lập trình cơ chế tự động Fallback tức thời sang thuật toán BM25 Okapi tính điểm từ khóa để đảm bảo tool luôn trả về kết quả trích dẫn Điều/Khoản hợp lệ.*
+  > *Viết tool MCP Đọc `lookup_policy(query: str, version: Optional[str] = "latest")` kết nối trực tiếp với module RAG để tra cứu quy chế điểm rèn luyện (Tầng a, b - R-05), hỗ trợ lọc phiên bản (version: 'latest', '2024', '2022', 'all') và tool `check_complaint_status(complaint_id: str)` để đối soát đơn (Tầng c - R-07). Thiết kế hàm singleton nạp trước toàn bộ 71 chunks quy chế từ data/processed/chunks.json (tự động kích hoạt parse_and_chunk_documents() nếu chưa có file) để không nạp lại đĩa ở mỗi request. Tinh gọn mã nguồn server bằng cách ủy quyền tìm kiếm cho RAG pipeline có tích hợp Fallback BM25 Okapi khi embedding gặp lỗi.*
 
 * **Đoạn code do AI hỗ trợ sinh:**
   ```python
   _rag_store = None
   def get_rag_store():
       global _rag_store
-      if _rag_store is not None: return _rag_store
+      if _rag_store is not None:
+          return _rag_store
       store = VectorStore()
-      with open(PROJECT_ROOT / "data" / "processed" / "chunks.json", "r", encoding="utf-8") as f:
-          for item in json.load(f):
-              c = DocumentChunk.from_dict(item)
+      chunks_path = PROJECT_ROOT / "data" / "processed" / "chunks.json"
+      if chunks_path.exists():
+          with open(chunks_path, "r", encoding="utf-8") as f:
+              for item in json.load(f):
+                  c = DocumentChunk.from_dict(item)
+                  store.chunks[c.chunk_id] = c
+      else:
+          from src.rag.document_parser import parse_and_chunk_documents
+          for c in parse_and_chunk_documents():
               store.chunks[c.chunk_id] = c
       _rag_store = store
       return _rag_store
 
   @mcp.tool()
-  def lookup_policy(query: str) -> str:
-      store = get_rag_store()
+  def lookup_policy(query: str, version: Optional[str] = "latest") -> str:
       try:
-          rag_res = rag_pipeline(query, store, top_k=3, search_mode="hybrid")
-      except Exception:
-          # Fallback BM25 Okapi khi Hybrid gặp sự cố
-          bm25_idx = build_bm25_index(list(store.chunks.values()))
-          scores = bm25_idx.get_scores(query.lower().split())
-          scored = [(chunks[i], float(scores[i])) for i in range(len(chunks))]
-          scored.sort(key=lambda x: x[1], reverse=True)
-          rag_res = {"sources": [{"source": c.metadata.get("source"), "dieu": c.metadata.get("dieu"), "content": c.content} for c, s in scored[:3]]}
-      return json.dumps(rag_res, ensure_ascii=False)
+          inp = LookupPolicyInput(query=query, version=version)
+      except Exception as err:
+          return json.dumps({"status": "error", "message": f"Dữ liệu không hợp lệ: {err}"}, ensure_ascii=False)
+
+      try:
+          store = get_rag_store()
+          from src.rag.rag_pipeline import rag_pipeline
+          rag_res = rag_pipeline(inp.query, store, top_k=3, search_mode="hybrid", version=inp.version)
+          sources = rag_res.get("sources", [])
+          output = {
+              "status": "success" if sources else "not_found",
+              "query": inp.query,
+              "version": inp.version,
+              "answer": rag_res.get("answer", ""),
+              "sources": sources,
+          }
+          return json.dumps(output, ensure_ascii=False)
+      except Exception as err:
+          return json.dumps({"status": "error", "message": f"Lỗi tra cứu: {err}"}, ensure_ascii=False)
 
   @mcp.tool()
   def check_complaint_status(complaint_id: str) -> str:
@@ -262,9 +289,10 @@
   ```
 
 * **Tinh chỉnh và hoàn thiện của sinh viên:**
-  1. Cài đặt singleton `get_rag_store()` nạp RAM 24 chunks quy chế từ đầu, loại bỏ độ trễ đọc đĩa lặp lại.
-  2. Lập trình cơ chế tự động Fallback sang BM25 Okapi khi module Hybrid search embedding gặp lỗi, bảo đảm tool không bao giờ crash.
-  3. Chuẩn hóa metadata `sources` (Điều, Khoản, nội dung, điểm số) phục vụ trích dẫn căn cứ Grounding (Tầng a).
+  1. Tích hợp Policy Versioning vào Tool Contract: Cho phép Agent tự động chọn bản mới nhất (`'latest'` -> 2024) hoặc chỉ định rõ `'2022'`, `'2024'`, `'all'` để giải quyết bài toán so sánh mâu thuẫn điểm áp trần NCKH (10đ ở bản 2022 vs 15đ ở bản 2024) hoặc điều kiện GPA < 2.0 (Tầng b - R-05).
+  2. Tinh gọn mã nguồn MCP Server: Ủy quyền việc tìm kiếm và lọc phiên bản xuống `rag_pipeline` (tái dùng hàm `filter_chunks_by_version` và BM25 Okapi Fallback), loại bỏ hơn 40 dòng code trùng lặp, giữ MCP Server chuẩn mực và nhẹ nhàng.
+  3. Nạp trước 71 chunks từ cả 3 tài liệu quy chế vào RAM qua Singleton `get_rag_store()`, tự động gọi parser tái sinh dữ liệu nếu đĩa chưa có `chunks.json`.
+  4. Chuẩn hóa metadata `sources` trả về kèm `version` và `version_year` làm bằng chứng Grounding phục vụ trích dẫn minh bạch (Tầng a).
 
 
 * **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
@@ -356,6 +384,58 @@
 
 
 * **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
+  **Vị trí áp dụng:** Bộ kiểm soát State Machine `pending_verification_cid` và kiểm định Verify R-07 trong hàm `react_agent` thuộc [src/orchestrator.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/orchestrator.py) (Dòng 219 đến 220, dòng 246 đến 259, và dòng 276 đến 284).
+* **Prompt chính đã dùng:**
+  > *Trong vòng lặp ReAct Agent đề tài T4, LLM sau khi gọi tool ghi khiếu nại `submit_complaint` thường vội vàng đưa ra Final Answer cho người dùng mà không gọi lại tool đọc `check_complaint_status` để kiểm chứng dữ liệu đã ghi thật (vi phạm nghiêm ngặt tiêu chí Tầng c và R-07 trong PDF 01/02). Hãy gợi ý cơ chế State Machine bằng biến cờ trong vòng lặp: khi tool ghi trả về mã đơn CPL-xxx, ghi nhớ mã này; nếu LLM muốn kết luận Final Answer trong khi chưa verify, lập tức chặn lại và gửi Observation cưỡng chế ép LLM phải gọi tool đọc xác minh.*
+
+* **Đoạn code do AI hỗ trợ sinh:**
+  ```python
+  pending_verification_cid: Optional[str] = None
+  verified = False
+
+  for step_idx in range(1, max_steps + 1):
+      # ...
+      kind, payload = parse_reply(raw_output)
+
+      if kind == "final":
+          # Kiểm định R-07: Nếu vừa ghi đơn mà chưa xác minh lại thì BẮT BUỘC gọi tool đọc
+          if pending_verification_cid:
+              step.error = "Chưa verify đơn theo R-07"
+              steps.append(step)
+              messages.append({"role": "assistant", "content": raw_output})
+              messages.append({
+                  "role": "user",
+                  "content": (
+                      f"Observation: Error: Theo quy định R-07, bạn vừa tạo đơn {pending_verification_cid}. "
+                      "BẮT BUỘC bạn phải gọi tool đọc 'check_complaint_status' với mã này để xác minh trước khi kết luận."
+                  ),
+              })
+              continue
+
+          final_answer = str(payload)
+          break
+
+      elif kind == "action":
+          tool_name, tool_args = payload
+          obs = await run_action(tool_name, tool_args, mcp_client)
+
+          # R-07: Theo dõi trạng thái Verify khi nộp khiếu nại
+          if tool_name == "submit_complaint":
+              cid_match = re.search(r"CPL-\d{4}-\d{4}", obs)
+              if cid_match:
+                  pending_verification_cid = cid_match.group(0)
+          elif tool_name == "check_complaint_status":
+              pending_verification_cid = None
+              verified = True
+  ```
+
+* **Tinh chỉnh và hoàn thiện của sinh viên:**
+  1. Xây dựng regex trích xuất chính xác mã đơn chuẩn `CPL-\d{4}-\d{4}` từ kết quả phản hồi của MCP Server để nạp vào biến trạng thái `pending_verification_cid`.
+  2. Bắt lỗi mềm bằng cơ chế can thiệp ngữ cảnh: Chặn đứng ý định trả lời sớm của LLM, đưa phản hồi `Observation: Error: ...` để LLM tự giác quay lại chu trình suy luận gọi `check_complaint_status`, bảo đảm 100% không làm gãy luồng hội thoại.
+  3. Cập nhật cờ `verified = True` trả về cho bộ đánh giá `make eval` (test_agent.py) và `SessionLogger`, chứng minh hệ thống đạt tiêu chí "Hành động có kiểm chứng" của Tầng (c).
+
+
+* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).
   **Vị trí áp dụng:** Class `AgentStep` và hàm `run_action` trong [src/orchestrator.py](file:///c:/Users/LENOVO/Desktop/Study/AIPR/AIPR%20Project%20Final/src/orchestrator.py) (Dòng 28 đến dòng 37 và dòng 127 đến dòng 148).
 * **Prompt chính đã dùng:**
   > *Viết dataclass AgentStep để mô hình hóa từng bước suy luận của ReAct Agent (step_number, thought, action, tool_name, tool_args, observation, error, raw_response). Đồng thời viết hàm run_action(name, argument, mcp_client) để bọc lệnh gọi MCP Client: tự động chuẩn hóa đối số đầu vào (cho phép cả chuỗi JSON string hoặc dict) và bắt lỗi mềm trả về chuỗi str thông báo lỗi để không làm sập chương trình khi công cụ ném ngoại lệ (R-06).*
@@ -430,10 +510,6 @@
 ---
 
 ### Thành viên: [Phạm Phước Anh - 24110075] — Member C (System Integrator & Evaluator)
-
-> ⚠️ **Cam kết tuân thủ Yêu cầu R-01, R-04 & R-07 (PDF 02 §1, §2.4 & §2.5):**  
-> Toàn bộ kiến trúc tích hợp hệ thống, đường ống kiểm thử tự động toàn diện (**4 Tầng nghiệp vụ: Grounding, Calculation, Side-Effect Verify, Calibration - đạt tuyệt đối 16/16 câu 100.0%**), quy trình trích xuất đo lường token thật và ước tính chi phí USD thời gian thực (`SessionLogger` ghi `logs/run_*.jsonl`), cùng giao diện CLI REPL tương tác Rich (`src/main.py`) là do **sinh viên tự tay tích hợp, kiểm thử, gỡ lỗi và tối ưu hóa 100% bằng Python thuần**. Sinh viên hoàn toàn làm chủ từng dòng lệnh, hiểu rõ cơ chế bọc LLM Client với Exponential Backoff, giải quyết triệt để các lỗi môi trường Windows (chống vỡ font console UTF-8 qua `sys.stdout.reconfigure`, lọc sạch `sys.path` tránh xung đột thư viện `mcp`), đồng thời sẵn sàng vấn đáp và thực hiện live-demo kiểm thử theo mọi tình huống yêu cầu của Giảng viên.  
-> Dưới đây là bảng khai báo minh bạch 4 hạng mục kỹ thuật cốt lõi có sử dụng trợ lý AI hỗ trợ sinh khung mã nguồn (scaffolding) và cấu trúc kiểm thử ban đầu:
 
 * **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).  
   **Vị trí áp dụng:** Class `RobustLLMClient` trong [./AIPR-Final-Student-Policy-Agent/src/llm_client.py](./AIPR-Final-Student-Policy-Agent/src/llm_client.py) (Dòng 58 đến dòng 94) và file unit test [./AIPR-Final-Student-Policy-Agent/tests/test_llm_client.py](./AIPR-Final-Student-Policy-Agent/tests/test_llm_client.py) (Dòng 1 đến dòng 83).
