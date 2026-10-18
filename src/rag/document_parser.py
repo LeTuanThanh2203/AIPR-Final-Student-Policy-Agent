@@ -1,4 +1,7 @@
 """Document Parser & Logical Chunking (Kế thừa từ W3/recursive_chunking.py)."""
+# HTRL.txt : DOC_001
+# HTRL_2022.txt: DOC_002
+# HTRL_2024.txt: DOC_003
 
 from __future__ import annotations
 
@@ -9,7 +12,9 @@ from pathlib import Path
 from typing import List
 
 
-
+# ============================================================
+# 1. CẤU HÌNH ĐƯỜNG DẪN
+# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -19,7 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.rag.doc_model import DocumentChunk
 
 
-# CẤU HÌNH CÁC FILE VĂN BẢN
+# Cấu hình các file văn bản
 SOURCE_FILES = [
     "data/raw/HTRL_2022.txt",
     "data/raw/HTRL_2024.txt",
@@ -28,14 +33,19 @@ SOURCE_FILES = [
 
 OUTPUT_PATH = "data/processed/chunks.json"
 
-VERSION_BY_FILE = {
-    "HTRL_2022.txt": "2022",
-    "HTRL_2024.txt": "2024",
-    "HTRL.txt": "main",
+
+# Gán doc_id cố định theo tên file
+DOC_ID_BY_FILE = {
+    "HTRL.txt": "DOC_001",
+    "HTRL_2022.txt": "DOC_002",
+    "HTRL_2024.txt": "DOC_003",
 }
 
 
-# CẤU HÌNH 5 TIÊU CHÍ CỦA PHỤ LỤC 1
+# ============================================================
+# 2. CẤU HÌNH 5 TIÊU CHÍ CỦA PHỤ LỤC 1
+# ============================================================
+
 CRITERIA = [
     (
         "I",
@@ -65,9 +75,13 @@ CRITERIA = [
 ]
 
 
-# HÀM XỬ LÝ ĐƯỜNG DẪN VÀ PHIÊN BẢN
+# ============================================================
+# 3. XỬ LÝ ĐƯỜNG DẪN VÀ DOC_ID
+# ============================================================
+
 def resolve_path(path: str) -> Path:
-    """Chuyển đường dẫn tương đối thành đường dẫn từ gốc project."""
+    """Chuyển đường dẫn tương đối thành đường dẫn từ gốc dự án."""
+
     result = Path(path)
 
     if not result.is_absolute():
@@ -76,26 +90,26 @@ def resolve_path(path: str) -> Path:
     return result
 
 
-def extract_version(filename: str) -> str:
-    """Lấy nhãn phiên bản từ tên file."""
-    return VERSION_BY_FILE.get(filename, "main")
+def get_doc_id(filename: str) -> str:
+    """Lấy doc_id tương ứng với tên file."""
+
+    doc_id = DOC_ID_BY_FILE.get(filename)
+
+    if doc_id is None:
+        raise ValueError(
+            f"Chưa cấu hình doc_id cho file: {filename}"
+        )
+
+    return doc_id
 
 
-def make_doc_id(source_path: Path, version: str) -> str:
-    """Tạo ID riêng cho từng tài liệu và phiên bản."""
-    return f"DOC_{source_path.stem}_v{version}"
+# ============================================================
+# 4. TÁCH PHẦN THÂN QUY CHẾ THEO TỪNG ĐIỀU
+# ============================================================
 
-
-def make_version_year(version: str) -> int | None:
-    """Chuyển phiên bản dạng năm thành số nguyên."""
-    return int(version) if version.isdigit() else None
-
-
-# TÁCH PHẦN THÂN QUY CHẾ THEO TỪNG ĐIỀU
 def extract_articles(
     text: str,
     doc_id: str,
-    version: str,
     source_name: str,
     start_index: int = 0,
 ) -> List[DocumentChunk]:
@@ -103,18 +117,16 @@ def extract_articles(
 
     chunks: List[DocumentChunk] = []
 
-    # Nhận dạng các dạng:
+    # Nhận dạng:
     # Điều 1. Phạm vi điều chỉnh
     # Điều 2: Mục đích
     # Điều 3 Đối tượng áp dụng
     article_pattern = (
-        r"(?m)^[ \t]*Điều[ \t]+(\d+)"
+        r"(?im)^[ \t]*Điều[ \t]+(\d+)"
         r"[ \t]*[.:]?[ \t]*([^\r\n]*)"
     )
 
-    matches = list(
-        re.finditer(article_pattern, text, re.IGNORECASE)
-    )
+    matches = list(re.finditer(article_pattern, text))
 
     # Xác định vị trí bắt đầu Phụ lục 1.
     appendix_match = re.search(
@@ -154,16 +166,12 @@ def extract_articles(
         chunk_index = start_index + len(chunks) + 1
 
         chunk = DocumentChunk(
-            chunk_id=(
-                f"{doc_id}_D{article_number.zfill(2)}"
-            ),
+            chunk_id=f"{doc_id}_D{article_number.zfill(2)}",
             doc_id=doc_id,
             chunk_index=chunk_index,
             content=content,
             metadata={
                 "doc_id": doc_id,
-                "version": version,
-                "version_year": make_version_year(version),
                 "dieu": article_number,
                 "title": article_title or f"Điều {article_number}",
                 "source": source_name,
@@ -176,11 +184,13 @@ def extract_articles(
     return chunks
 
 
-# TÁCH PHỤ LỤC 1 THÀNH 5 TIÊU CHÍ
+# ============================================================
+# 5. TÁCH PHỤ LỤC 1 THÀNH 5 TIÊU CHÍ
+# ============================================================
+
 def extract_appendix_criteria(
     text: str,
     doc_id: str,
-    version: str,
     source_name: str,
     start_index: int = 0,
 ) -> List[DocumentChunk]:
@@ -202,7 +212,7 @@ def extract_appendix_criteria(
     criteria_matches = list(
         re.finditer(
             r"(?im)^[ \t]*TIÊU\s+CHÍ\s+"
-            r"(IV|III|II|I|V)\b",
+            r"(IV|III|II|I|V)\b[^\r\n]*",
             appendix_text,
         )
     )
@@ -243,14 +253,11 @@ def extract_appendix_criteria(
             doc_id=doc_id,
             chunk_index=chunk_index,
             content=(
-                f"[Phiên bản {version} - "
-                f"Phụ lục 1 - {criterion_title}]\n"
+                f"[Phụ lục 1 - {criterion_title}]\n"
                 f"{content}"
             ),
             metadata={
                 "doc_id": doc_id,
-                "version": version,
-                "version_year": make_version_year(version),
                 "dieu": mapped_article,
                 "tieu_chi": roman,
                 "title": criterion_title,
@@ -264,22 +271,24 @@ def extract_appendix_criteria(
     return chunks
 
 
+# ============================================================
+# 6. ĐỌC NHIỀU FILE VÀ SINH LOGICAL CHUNKS
+# ============================================================
 
-# ĐỌC NHIỀU FILE VÀ SINH LOGICAL CHUNKS
 def parse_and_chunk_documents(
     source_files: List[str] | None = None,
     output_path: str = OUTPUT_PATH,
 ) -> List[DocumentChunk]:
     """
-    Đọc nhiều phiên bản quy chế, tách theo từng Điều và
-    Tiêu chí, gắn metadata phiên bản và lưu chung vào JSON.
+    Đọc nhiều file quy chế, tách theo từng Điều và tiêu chí,
+    gán doc_id cố định rồi lưu chung vào JSON.
     """
 
     if source_files is None:
         source_files = SOURCE_FILES
 
     all_chunks: List[DocumentChunk] = []
-    version_stats = []
+    document_stats = []
 
     for source_file in source_files:
         source_path = resolve_path(source_file)
@@ -288,6 +297,9 @@ def parse_and_chunk_documents(
             raise FileNotFoundError(
                 f"Không tìm thấy file dữ liệu: {source_path}"
             )
+
+        # Xác định doc_id từ tên file.
+        doc_id = get_doc_id(source_path.name)
 
         text = source_path.read_text(encoding="utf-8-sig")
 
@@ -298,14 +310,10 @@ def parse_and_chunk_documents(
             )
             continue
 
-        version = extract_version(source_path.name)
-        doc_id = make_doc_id(source_path, version)
-
         # Tách phần thân quy chế.
         article_chunks = extract_articles(
             text=text,
             doc_id=doc_id,
-            version=version,
             source_name=source_path.name,
             start_index=len(all_chunks),
         )
@@ -316,7 +324,6 @@ def parse_and_chunk_documents(
         criterion_chunks = extract_appendix_criteria(
             text=text,
             doc_id=doc_id,
-            version=version,
             source_name=source_path.name,
             start_index=len(all_chunks),
         )
@@ -327,9 +334,8 @@ def parse_and_chunk_documents(
             len(article_chunks) + len(criterion_chunks)
         )
 
-        version_stats.append({
+        document_stats.append({
             "file": source_path.name,
-            "version": version,
             "doc_id": doc_id,
             "article_chunks": len(article_chunks),
             "criterion_chunks": len(criterion_chunks),
@@ -337,33 +343,31 @@ def parse_and_chunk_documents(
         })
 
         print(f"\n[DocumentParser] File: {source_path.name}")
-        print(f"  Phiên bản: {version}")
         print(f"  Document ID: {doc_id}")
         print(f"  Số Điều: {len(article_chunks)}")
-        print(f"  Số Tiêu chí: {len(criterion_chunks)}")
+        print(f"  Số tiêu chí: {len(criterion_chunks)}")
         print(f"  Tổng chunks: {total_file_chunks}")
 
-   
-    #  LƯU TOÀN BỘ CHUNKS VÀO JSON
+    # Lưu toàn bộ chunks vào JSON.
     out_file = resolve_path(output_path)
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with out_file.open("w", encoding="utf-8") as f:
+    with out_file.open("w", encoding="utf-8") as file:
         json.dump(
             [chunk.to_dict() for chunk in all_chunks],
-            f,
+            file,
             ensure_ascii=False,
             indent=2,
         )
 
     print("\n========== TỔNG KẾT ==========")
-    print(f"Số file đã xử lý: {len(version_stats)}")
+    print(f"Số file đã xử lý: {len(document_stats)}")
     print(f"Tổng logical chunks: {len(all_chunks)}")
 
-    for stat in version_stats:
+    for stat in document_stats:
         print(
             f"- {stat['file']} | "
-            f"version={stat['version']} | "
+            f"doc_id={stat['doc_id']} | "
             f"chunks={stat['total_chunks']}"
         )
 
@@ -372,7 +376,13 @@ def parse_and_chunk_documents(
     return all_chunks
 
 
+# ============================================================
+# 7. CHẠY CHƯƠNG TRÌNH
+# ============================================================
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
     parse_and_chunk_documents()
 
