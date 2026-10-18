@@ -10,7 +10,7 @@
 | :---: | :--- | :--- | :--- | :--- |
 | 1 | **Ca Ngọc Tân** | **RAG và Data Engineer** | **Antigravity** | **AI hỗ trợ sinh mã nguồn xử lý và phân đoạn văn bản, triển khai Hybrid Search và tích hợp cơ chế Calibration trong RAG Pipeline** |
 | 2 | **Lê Tuấn Thành** | **Agent & MCP Architect** | **Antigravity AI Assistant (Gemini 3.8 Flash High)** | **Typed Schemas (@dataclass), MCP Server stdio (stdout sạch 100%), Dynamic Tool Discovery (mcp SDK), Fallback BM25 Okapi, bộ parse Action đa định dạng và ThreadPool async bridge (src/mcp/, src/orchestrator.py). *Vòng lặp ReAct tự viết tay 100%.* |
-| 3 | **Phạm Phước Anh** | **System Integrator & Evaluator** | **Antigravity AI Assistant (Gemini 3.8 Flash High)** | **Cơ chế Exponential Backoff & Mocking (src/llm_client.py, tests/test_llm_client.py), mở rộng Session Logger JSONL từ bài học Tuần 2 (src/utils/logger.py, tests/test_logger.py), bộ kiểm thử đánh giá tự động 4 tầng 16/16 câu 100% (tests/test_agent.py, tests/testset.jsonl), và giao diện CLI Rich tương tác (src/main.py).** |
+| 3 | **Phạm Phước Anh** | **System Integrator & Evaluator** | **ChatGPT & Antigravity AI Assistant** | **4 câu hỏi đánh đố bổ sung (Q11-Q14) trong testset và nội dung phản biện thêm vào Prompt do sinh viên tự lên ý tưởng, tự viết và dùng ChatGPT tinh chỉnh câu chữ; AI hỗ trợ sinh mã nguồn kịch bản đánh giá tự động đa tầng (tests/test_agent.py), Exponential Backoff (src/llm_client.py, tests/test_llm_client.py), Session Logger & chi phí USD (src/utils/logger.py, tests/test_logger.py), giao diện CLI Rich tương tác (src/main.py).** |
 
 
 ---
@@ -560,14 +560,24 @@
   3. Tiếp nhận toàn bộ mã nguồn file unit test do AI sinh, rà soát logic kiểm thử, sửa lỗi đường dẫn import và cấu hình môi trường bảo đảm chạy 100% test pass (3/3 test cases trong `tests/test_logger.py`).
 
 
-* **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).  
-  **Vị trí áp dụng:** Bộ kiểm thử đánh giá tự động đa tầng trong [./AIPR-Final-Student-Policy-Agent/tests/test_agent.py](./AIPR-Final-Student-Policy-Agent/tests/test_agent.py) (Dòng 50 đến dòng 377) và tập dữ liệu benchmark 16 câu [./AIPR-Final-Student-Policy-Agent/tests/testset.jsonl](./AIPR-Final-Student-Policy-Agent/tests/testset.jsonl).
-* **Prompt chính đã dùng:**  
-  > *Viết script đánh giá tự động toàn diện hệ thống (make eval) đọc tập 16 câu hỏi từ tests/testset.jsonl. Thiết kế logic chấm điểm 4 tầng nghiệp vụ: Grounding accuracy (trích dẫn Điều/Khoản và văn bản quy chế), Calculation accuracy (áp trần điểm số theo công thức Min(a+b, Cap) và nhận diện thiếu dữ liệu), Tool Side-Effect Verify (R-07 kiểm tra đủ cặp tool submit_complaint và check_complaint_status), và Calibration Rate (tỉ lệ từ chối câu hỏi bẫy ngoài quy chế >= 80%). Đồng thời viết hàm run_evaluation_async tích hợp SessionLogger và xuất bảng tổng kết Evaluation Summary Table in ra console.*
+* **Công cụ sử dụng:** ChatGPT (tinh chỉnh câu chữ 4 câu hỏi kiểm thử và nội dung bổ sung trong Prompt) & Antigravity AI Assistant (hỗ trợ sinh mã nguồn kịch bản đánh giá `tests/test_agent.py`).  
+  **Vị trí áp dụng:** 
+  - 4 câu hỏi đánh đố/kiểm chứng ngộ nhận bổ sung (Q11 đến Q14) trong [./AIPR-Final-Student-Policy-Agent/tests/testset.jsonl](./AIPR-Final-Student-Policy-Agent/tests/testset.jsonl).
+  - Nội dung quy tắc tư duy phản biện bổ sung ở Mục 2 trong [./AIPR-Final-Student-Policy-Agent/prompts/system_react.txt](./AIPR-Final-Student-Policy-Agent/prompts/system_react.txt).
+  - Kịch bản đánh giá tự động đa tầng trong [./AIPR-Final-Student-Policy-Agent/tests/test_agent.py](./AIPR-Final-Student-Policy-Agent/tests/test_agent.py).
+* **Quy trình phối hợp giữa Sinh viên và AI:**
+  1. **Về phần 4 câu hỏi đánh đố (`tests/testset.jsonl`) và nội dung bổ sung vào Prompt (`prompts/system_react.txt`):**
+     - **Sinh viên tự lên ý tưởng và tự viết:** Sinh viên tự nghĩ ra 4 tình huống đánh đố thực tế (sinh viên nhớ sai Điều 10, sinh viên đòi cộng điểm rớt môn, sinh viên ngộ nhận 88đ là chắc chắn loại Tốt dù chưa rõ GPA theo Điều 11, và thắc mắc nâng điểm hiến máu 3đ lên 5đ giữa 2 quy chế). Đồng thời sinh viên tự soạn các quy tắc tư duy phản biện (chống ba phải/nịnh người dùng, bắt buộc kiểm chứng số Điều, áp trần và xét Điều 11) để bổ sung vào System Prompt.
+     - **ChatGPT hỗ trợ tinh chỉnh câu chữ:** Sinh viên dùng ChatGPT để trau chuốt lại câu chữ, kiểm tra chính tả và chuẩn hóa hành văn tiếng Việt tự nhiên cho 4 câu hỏi và nội dung bổ sung vào Prompt.
+  2. **Về phần Script đánh giá tự động (`tests/test_agent.py`):**
+     - **Sinh viên đặt đề bài:** Nêu rõ các yêu cầu về logic chấm điểm 4 tầng (Grounding, Calculation caps, Side-effect Verify R-07, Calibration Rate $\ge 80\%$, và chấm đúng các ca phản biện/đánh đố).
+     - **AI hỗ trợ sinh mã nguồn:** AI được nhờ giải quyết các vấn đề kỹ thuật liên quan trong `tests/test_agent.py`: viết regex bóc tách kết quả sau dấu `=`, bóc tách danh sách Điều/Khoản, kiểm tra cặp tool `submit_complaint` và `check_complaint_status`, điều phối bất đồng bộ `async/await` gửi lần lượt câu hỏi vào `ReActOrchestrator`, đo đếm token usage tích lũy từ API và in bảng tổng kết Evaluation Summary Table.
+* **Prompt chính đã dùng với AI hỗ trợ code:**  
+  > *Viết script đánh giá tự động toàn diện hệ thống (make eval) đọc tập câu hỏi từ tests/testset.jsonl. Thiết kế logic chấm điểm 4 tầng nghiệp vụ: Grounding accuracy (trích dẫn Điều/Khoản và văn bản quy chế), Calculation accuracy (áp trần điểm số theo công thức Min(a+b, Cap), nhận diện thiếu dữ liệu, đính chính câu hỏi đánh đố nhớ sai số Điều, tổng hợp ràng buộc Điều 11), Tool Side-Effect Verify (R-07 kiểm tra đủ cặp tool submit_complaint và check_complaint_status), và Calibration Rate (tỉ lệ từ chối câu hỏi bẫy ngoài quy chế >= 80%). Đồng thời viết hàm run_evaluation_async tích hợp SessionLogger và xuất bảng tổng kết Evaluation Summary Table in ra console.*
 
-* **Đoạn code do AI hỗ trợ sinh:**  
+* **Đoạn code do AI hỗ trợ sinh (tests/test_agent.py):**  
   ```python
-  # --- Logic chấm điểm 4 tầng nghiệp vụ (tests/test_agent.py) ---
+  # --- Logic chấm điểm 4 tầng nghiệp vụ do AI hỗ trợ sinh mã nguồn (tests/test_agent.py) ---
   REFUSAL_KEYWORDS = ["không có", "từ chối", "ngoài phạm vi", "không quy định", "không thể xác định"]
 
   def evaluate_single_query(test_item: Dict[str, Any], agent_response: Dict[str, Any]) -> Dict[str, Any]:
@@ -586,7 +596,7 @@
           has_dieu = any(f"điều {d}" in final_answer or f"điều {d}" in str(steps).lower() for d in dieu_list)
           has_doc = any(v in final_answer or v in str(steps).lower() for v in ["htrl", "quy chế", "quy định"])
           passed = has_dieu and has_doc
-      # Nhóm 3: Kiểm tra Tầng b - Tính toán áp mức trần hoặc nhận diện thiếu dữ liệu
+      # Nhóm 3: Kiểm tra Tầng b - Tính toán áp trần, phát hiện xung đột, phản biện đánh đố
       elif tier == "b_transform":
           if item_type == "calculation_caps":
               match = re.search(r"=\s*(\d+)", str(test_item.get("expected_calculation", "")))
@@ -594,24 +604,27 @@
               passed = expected_num in final_answer if expected_num else True
           elif item_type == "missing_data_refusal":
               passed = any(kw in final_answer for kw in ["thiếu", "không đủ", "chưa đủ", "cần thêm"])
+          elif item_type == "adversarial_fact_check":
+              passed = any(kw in final_answer for kw in ["không đúng", "nhớ sai", "điều 10", "tiêu chí", "không có quy định"])
+          elif item_type == "multi_doc_synthesis":
+              passed = any(kw in final_answer for kw in ["điều 11", "gpa", "2.0", "khá", "kỷ luật"])
+          else:
+              passed = any(kw in final_answer for kw in ["2024", "mới nhất", "thay đổi", "nâng lên", "không nhầm"])
       # Nhóm 4: Kiểm tra Tầng c - Tác vụ ghi có tác dụng phụ và bắt buộc xác minh (R-07)
       elif tier == "c_action":
           called_tools = [s.get("tool_name") for s in steps if isinstance(s, dict) and s.get("tool_name")]
           passed = ("submit_complaint" in called_tools) and ("check_complaint_status" in called_tools)
 
       return {"id": test_item.get("id"), "tier": tier, "passed": passed}
-
-  # --- Cấu trúc dữ liệu chuẩn hóa trong tests/testset.jsonl ---
-  # {"id": "Q01", "tier": "a_lookup", "query": "Quy chế...", "expected_dieu": "7", "expected_doc": "HTRL"}
-  # {"id": "Q05", "tier": "b_transform", "type": "calculation_caps", "expected_calculation": "Min(3*5 + 10, 15) = 15"}
-  # {"id": "Q07", "tier": "c_action", "query": "Nộp khiếu nại...", "student_id": "24110075"}
-  # {"id": "Q10", "tier": "calibration", "query": "Đổi bằng lái xe sang điểm?", "no_answer": true}
   ```
 
 * **Tinh chỉnh và hoàn thiện của sinh viên:**  
-  1. Tự đồng bộ Ground Truth trong `tests/testset.jsonl` với văn bản gốc `HTRL.txt` (sửa Q01 thành Điều 7 NCKH, Q02 thành Điều 5 điểm học tập, Q03 thành Điều 12/16/17 nộp đơn), đạt kết quả tuyệt đối **16/16 (100.0%)** trên `make eval`.
-  2. Bổ sung danh sách 12 từ khóa từ chối lịch sự trong `REFUSAL_KEYWORDS`, chặn đứng hiện tượng ảo giác (hallucination) trên các câu hỏi bẫy (đạt 3/3 câu calibration).
-  3. Tích hợp `SessionLogger` tự động lưu toàn bộ 16 lượt chạy đánh giá thành file log độc lập `logs/run_*.jsonl`, in bảng Rich Table tổng kết chi phí và token rõ ràng.
+  1. Tự thiết kế ý tưởng 4 câu hỏi đánh đố (Q11-Q14) và dùng ChatGPT tinh chỉnh câu chữ, bổ sung vào `tests/testset.jsonl` và `prompts/system_react.txt`, đạt kết quả tuyệt đối **100.0%** trên `make eval`.
+  2. Bổ sung danh sách 12 từ khóa từ chối lịch sự trong `REFUSAL_KEYWORDS`, chặn đứng hiện tượng ảo giác (hallucination) trên các câu hỏi bẫy (đạt 4/4 câu calibration).
+  3. Trực tiếp rà soát toàn bộ code do AI hỗ trợ trong `tests/test_agent.py`, tự tay viết thêm các hàm unit tests độc lập (`test_evaluate_*`) để kiểm thử tính chính xác của hàm chấm điểm trước khi chạy benchmark.
+  4. Tích hợp `SessionLogger` tự động lưu toàn bộ lượt chạy đánh giá thành file log độc lập `logs/run_*.jsonl`, in bảng Rich Table tổng kết chi phí và token rõ ràng.
+
+
 
 
 * **Công cụ sử dụng:** Antigravity AI Assistant (Gemini 3.8 Flash High).  
