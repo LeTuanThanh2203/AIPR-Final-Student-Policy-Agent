@@ -97,7 +97,7 @@ Hệ thống MCP Server chạy qua giao thức `stdio` , đảm bảo kênh `std
 │       ├── config.py         # Hằng số cấu hình & đường dẫn
 │       └── logger.py         # JSONL Logger đo token USAGE thật & chi phí USD (Phạm Phước Anh)
 └── tests/
-    ├── testset.jsonl         # 16 câu hỏi kiểm thử đủ 3 tầng + bẫy Calibration (Phạm Phước Anh)
+    ├── testset.jsonl         # 20 câu hỏi kiểm thử đủ 3 tầng + bẫy Calibration (Phạm Phước Anh)
     ├── test_agent.py         # Script chạy make eval & benchmark tự động (Phạm Phước Anh)
     ├── test_llm_client.py    # Unit test LLM Client Mocking & Retry (Phạm Phước Anh)
     └── test_logger.py        # Unit test Session & Token Usage Logger (Phạm Phước Anh)

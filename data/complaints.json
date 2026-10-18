@@ -18,5 +18,25 @@
     "status": "pending_review",
     "created_at": "2026-10-17T19:45:44.412073+00:00",
     "updated_at": "2026-10-17T19:45:44.412073+00:00"
+  },
+  {
+    "complaint_id": "CPL-2026-0003",
+    "student_id": "21120001",
+    "category": "Điểm rèn luyện - Hoạt động phong trào",
+    "reason": "Bị sót 5 điểm hoạt động Mùa hè xanh trong Tiêu chí 3",
+    "evidence": "Giấy khen cấp trường về hoạt động Mùa hè xanh",
+    "status": "pending_review",
+    "created_at": "2026-10-18T18:31:03.933887+00:00",
+    "updated_at": "2026-10-18T18:31:03.933887+00:00"
+  },
+  {
+    "complaint_id": "CPL-2026-0004",
+    "student_id": "21120099",
+    "category": "Điểm tiêu chí học tập",
+    "reason": "Trình bày về việc cập nhật sót giải thưởng Olympic Tin học, xin xét bổ sung điểm rèn luyện cho giải thưởng đã đạt.",
+    "evidence": "(Sinh viên có thể cung cấp thêm bằng chứng: chứng nhận/huy chương Olympic Tin học)",
+    "status": "pending_review",
+    "created_at": "2026-10-18T18:31:41.881968+00:00",
+    "updated_at": "2026-10-18T18:31:41.881968+00:00"
   }
 ]
