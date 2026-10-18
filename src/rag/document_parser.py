@@ -12,10 +12,7 @@ from pathlib import Path
 from typing import List
 
 
-# ============================================================
-# 1. CẤU HÌNH ĐƯỜNG DẪN
-# ============================================================
-
+# CẤU HÌNH ĐƯỜNG DẪN
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 if str(PROJECT_ROOT) not in sys.path:
@@ -42,10 +39,7 @@ DOC_ID_BY_FILE = {
 }
 
 
-# ============================================================
-# 2. CẤU HÌNH 5 TIÊU CHÍ CỦA PHỤ LỤC 1
-# ============================================================
-
+# CẤU HÌNH 5 TIÊU CHÍ CỦA PHỤ LỤC 1
 CRITERIA = [
     (
         "I",
@@ -75,10 +69,7 @@ CRITERIA = [
 ]
 
 
-# ============================================================
 # 3. XỬ LÝ ĐƯỜNG DẪN VÀ DOC_ID
-# ============================================================
-
 def resolve_path(path: str) -> Path:
     """Chuyển đường dẫn tương đối thành đường dẫn từ gốc dự án."""
 
@@ -103,10 +94,7 @@ def get_doc_id(filename: str) -> str:
     return doc_id
 
 
-# ============================================================
-# 4. TÁCH PHẦN THÂN QUY CHẾ THEO TỪNG ĐIỀU
-# ============================================================
-
+# TÁCH PHẦN THÂN QUY CHẾ THEO TỪNG ĐIỀU
 def extract_articles(
     text: str,
     doc_id: str,
@@ -183,11 +171,7 @@ def extract_articles(
 
     return chunks
 
-
-# ============================================================
-# 5. TÁCH PHỤ LỤC 1 THÀNH 5 TIÊU CHÍ
-# ============================================================
-
+# TÁCH PHỤ LỤC 1 THÀNH 5 TIÊU CHÍ
 def extract_appendix_criteria(
     text: str,
     doc_id: str,
@@ -271,10 +255,7 @@ def extract_appendix_criteria(
     return chunks
 
 
-# ============================================================
-# 6. ĐỌC NHIỀU FILE VÀ SINH LOGICAL CHUNKS
-# ============================================================
-
+# ĐỌC NHIỀU FILE VÀ SINH LOGICAL CHUNKS
 def parse_and_chunk_documents(
     source_files: List[str] | None = None,
     output_path: str = OUTPUT_PATH,
@@ -375,10 +356,6 @@ def parse_and_chunk_documents(
 
     return all_chunks
 
-
-# ============================================================
-# 7. CHẠY CHƯƠNG TRÌNH
-# ============================================================
 
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
