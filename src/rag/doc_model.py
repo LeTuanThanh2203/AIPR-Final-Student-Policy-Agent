@@ -54,6 +54,8 @@ class DocumentChunk:
     chunk_id: str = ""
     doc_id: str = ""
     chunk_index: int = 0
+    version: str = ""
+    version_year: Optional[int] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     embedding: Optional[List[float]] = None
 
@@ -63,10 +65,13 @@ class DocumentChunk:
             "chunk_id": self.chunk_id,
             "doc_id": self.doc_id,
             "chunk_index": self.chunk_index,
+            "version": self.version,
+            "version_year": self.version_year,
             "content": self.content,
             "metadata": self.metadata,
             "embedding": self.embedding,
         }
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> DocumentChunk:
         """Khôi phục DocumentChunk từ Dictionary."""
@@ -75,6 +80,8 @@ class DocumentChunk:
             chunk_id=data.get("chunk_id", ""),
             doc_id=data.get("doc_id", ""),
             chunk_index=data.get("chunk_index", 0),
+            version=data.get("version", ""),
+            version_year=data.get("version_year"),
             metadata=data.get("metadata", {}),
             embedding=data.get("embedding"),
         )
