@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 def _require_non_empty(name: str, value: Any) -> str:
@@ -116,9 +116,16 @@ class CheckComplaintInput:
 class LookupPolicyInput:
     """Tham số khi tra cứu quy chế điểm rèn luyện (Tool Đọc - R-05 & Tầng a)."""
     query: str
+    version: Optional[str] = "latest"
 
     def __post_init__(self) -> None:
         self.query = _require_non_empty("query", self.query)
+        if self.version is None:
+            self.version = "latest"
+        elif not isinstance(self.version, str):
+            raise TypeError(f"Trường 'version' phải là kiểu str, nhận: {type(self.version).__name__}")
+        else:
+            self.version = self.version.strip() or "latest"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -131,7 +138,10 @@ class LookupPolicyInput:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> LookupPolicyInput:
-        return cls(query=data.get("query", ""))
+        return cls(
+            query=data.get("query", ""),
+            version=data.get("version", "latest"),
+        )
 
 
 @dataclass

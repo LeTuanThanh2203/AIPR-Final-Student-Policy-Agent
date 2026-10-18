@@ -367,6 +367,31 @@ def test_evaluate_action_with_verification_pass():
     assert result["passed"] is True
 
 
+def test_lookup_policy_version_latest():
+    """Kiểm thử tool lookup_policy tự động chọn phiên bản quy chế mới nhất (2024)."""
+    from src.mcp.server import lookup_policy
+    res_str = lookup_policy("hiến máu tình nguyện được cộng bao nhiêu điểm")
+    res = json.loads(res_str)
+    assert res["status"] == "success"
+    assert res["version"] == "latest"
+    assert len(res["sources"]) > 0
+    # Mọi nguồn tìm thấy từ latest đều thuộc phiên bản mới nhất (2024)
+    for source in res["sources"]:
+        assert source["version"] == "2024" or source["version_year"] == 2024
+
+
+def test_lookup_policy_version_specific():
+    """Kiểm thử tool lookup_policy tra cứu chính xác phiên bản được chỉ định."""
+    from src.mcp.server import lookup_policy
+    res_2022_str = lookup_policy("hiến máu tình nguyện", version="2022")
+    res_2022 = json.loads(res_2022_str)
+    assert res_2022["status"] == "success"
+    assert res_2022["version"] == "2022"
+    for source in res_2022["sources"]:
+        assert source["version"] == "2022" or source["version_year"] == 2022
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate AIPR Assistant T4")
     parser.add_argument("--testset", default="tests/testset.jsonl", help="Path to testset JSONL")

@@ -201,8 +201,7 @@ async def react_agent(
     tool_list = []
     if mcp_client:
         try:
-            res = await mcp_client.list_available_tools() if hasattr(mcp_client, "list_available_tools") else await mcp_client.list_tools()
-            tool_list = res.tools if hasattr(res, "tools") else (res if isinstance(res, list) else [])
+            tool_list = await mcp_client.list_tools()
         except Exception:
             tool_list = []
 

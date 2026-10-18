@@ -75,14 +75,21 @@ class DocumentChunk:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> DocumentChunk:
         """Khôi phục DocumentChunk từ Dictionary."""
+        metadata = data.get("metadata", {})
+        version = data.get("version") or metadata.get("version", "")
+        version_year = (
+            data.get("version_year")
+            if data.get("version_year") is not None
+            else metadata.get("version_year")
+        )
         return cls(
             content=data.get("content", ""),
             chunk_id=data.get("chunk_id", ""),
             doc_id=data.get("doc_id", ""),
             chunk_index=data.get("chunk_index", 0),
-            version=data.get("version", ""),
-            version_year=data.get("version_year"),
-            metadata=data.get("metadata", {}),
+            version=version,
+            version_year=version_year,
+            metadata=metadata,
             embedding=data.get("embedding"),
         )
 

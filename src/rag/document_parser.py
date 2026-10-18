@@ -188,7 +188,7 @@ def extract_appendix_criteria(
     chunks: List[DocumentChunk] = []
 
     appendix_match = re.search(
-        r"(?im)^[ \t]*Phụ\s+lục\s+1\b",
+        r"(?im)^[ \t]*(\*\*)?Phụ\s+lục\s+1\b",
         text,
     )
 
@@ -197,11 +197,10 @@ def extract_appendix_criteria(
 
     appendix_text = text[appendix_match.start():]
 
-    # Nhận diện tiêu đề TIÊU CHÍ I, II, III, IV, V.
+    # Nhận diện tiêu đề TIÊU CHÍ I, II, III, IV, V hoặc | I. HỌC TẬP...
     criteria_matches = list(
         re.finditer(
-            r"(?im)^[ \t]*TIÊU\s+CHÍ\s+"
-            r"(IV|III|II|I|V)\b",
+            r"(?im)^[ \t]*\|?[ \t]*\|?[ \t]*(?:TIÊU\s+CHÍ\s+)?(IV|III|II|I|V)\.[ \t]+[^\d\r\n|]+",
             appendix_text,
         )
     )
@@ -267,7 +266,7 @@ def extract_appendix_criteria(
 
 # ĐỌC NHIỀU FILE VÀ SINH LOGICAL CHUNKS
 def parse_and_chunk_documents(
-    source_files: List[str] | None = None,
+    source_files: List[str] | str | Path | None = None,
     output_path: str = OUTPUT_PATH,
 ) -> List[DocumentChunk]:
     """
@@ -277,6 +276,8 @@ def parse_and_chunk_documents(
 
     if source_files is None:
         source_files = SOURCE_FILES
+    elif isinstance(source_files, (str, Path)):
+        source_files = [str(source_files)]
 
     all_chunks: List[DocumentChunk] = []
     version_stats = []
@@ -373,4 +374,9 @@ def parse_and_chunk_documents(
 
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     parse_and_chunk_documents()
