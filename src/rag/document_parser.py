@@ -18,20 +18,17 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.rag.doc_model import DocumentChunk
 
 
-# CẤU HÌNH CÁC FILE VĂN BẢN
-SOURCE_FILES = [
-    "data/raw/HTRL_2022.txt",
-    "data/raw/HTRL_2024.txt",
-    "data/raw/HTRL.txt",
-]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = PROJECT_ROOT / "data" / "raw"
+
+SOURCE_FILES = sorted(
+    str(file)
+    for file in DATA_DIR.glob("*.txt")
+)
 
 OUTPUT_PATH = "data/processed/chunks.json"
 
-VERSION_BY_FILE = {
-    "HTRL_2022.txt": "2022",
-    "HTRL_2024.txt": "2024",
-    "HTRL.txt": "main",
-}
+
 
 
 # CẤU HÌNH 5 TIÊU CHÍ CỦA PHỤ LỤC 1
@@ -76,8 +73,14 @@ def resolve_path(path: str) -> Path:
 
 
 def extract_version(filename: str) -> str:
-    """Lấy nhãn phiên bản từ tên file."""
-    return VERSION_BY_FILE.get(filename, "main")
+    """Tự động lấy version từ phần cuối tên file."""
+    stem = Path(filename).stem
+    match = re.search(r"_(\d{4})$", stem)
+
+    if match:
+        return match.group(1)
+
+    return "main"
 
 
 def make_doc_id(source_path: Path, version: str) -> str:
