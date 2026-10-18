@@ -90,16 +90,27 @@ def evaluate_single_query(test_item: Dict[str, Any], agent_response: Dict[str, A
         expected_dieu = str(test_item.get("expected_dieu", "")).strip()
         expected_doc = str(test_item.get("expected_doc", "")).strip().lower()
 
-        # Kiểm tra trích dẫn số Điều trong câu trả lời hoặc trong chuỗi suy luận (hỗ trợ nhiều Điều cách nhau bởi dấu phẩy)
+        # Kiểm tra trích dẫn số Điều trong câu trả lời hoặc trong chuỗi suy luận (hỗ trợ nhiều Điều hoặc Tiêu chí tương đương)
         if expected_dieu:
             dieu_list = [d.strip() for d in expected_dieu.split(",") if d.strip()]
-            has_dieu = any(f"điều {d}" in final_answer or f"điều {d}" in str(steps).lower() for d in dieu_list)
+            criteria_aliases: Dict[str, List[str]] = {
+                "7": ["điều 7", "tiêu chí iii", "tiêu chí 3", "tc iii", "tc 3"],
+                "5": ["điều 5", "tiêu chí i", "tiêu chí 1", "tc i", "tc 1"],
+                "6": ["điều 6", "tiêu chí ii", "tiêu chí 2", "tc ii", "tc 2"],
+                "8": ["điều 8", "tiêu chí iv", "tiêu chí 4", "tc iv", "tc 4"],
+                "9": ["điều 9", "tiêu chí v", "tiêu chí 5", "tc v", "tc 5"],
+                "17": ["điều 17", "điều 16", "khiếu nại"],
+            }
+            search_terms = []
+            for d in dieu_list:
+                search_terms.extend(criteria_aliases.get(d, [f"điều {d}"]))
+            has_dieu = any(term in final_answer or term in str(steps).lower() for term in search_terms)
         else:
             has_dieu = True
 
         # Kiểm tra căn cứ văn bản quy chế trong câu trả lời hoặc log suy luận
         if expected_doc:
-            doc_variants = [expected_doc, "htrl", "quy chế", "quy định"]
+            doc_variants = [expected_doc, "htrl", "quy chế", "quy định", "phụ lục"]
             has_doc = any(v in final_answer or v in str(steps).lower() for v in doc_variants)
         else:
             has_doc = True

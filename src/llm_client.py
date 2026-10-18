@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import time
 from typing import Any, Dict, List, Optional
@@ -78,10 +79,35 @@ class RobustLLMClient:
             except Exception as e:
                 # Trích xuất mã trạng thái HTTP nếu có (từ Groq API Error hoặc HTTP error)
                 status_code = getattr(e, "status_code", None)
-                err_detail = f"Mã HTTP {status_code} - {e}" if status_code else str(e)
+                err_str = str(e)
+
+                # Bóc tách riêng phần thông điệp 'message' ngắn gọn, tránh in toàn bộ body response rộng
+                err_message = None
+                if hasattr(e, "body") and isinstance(e.body, dict):
+                    err_obj = e.body.get("error")
+                    if isinstance(err_obj, dict):
+                        err_message = err_obj.get("message")
+                    elif isinstance(err_obj, str):
+                        err_message = err_obj
+
+                if not err_message:
+                    match_msg = re.search(r"['\"]message['\"]:\s*['\"]([^'\"]+)['\"]", err_str)
+                    err_message = match_msg.group(1) if match_msg else err_str
+
+                err_detail = f"Mã HTTP {status_code} - {err_message}" if status_code else err_message
+
+                # Nếu gặp rate limit (429), bóc tách thời gian chờ cụ thể do Groq yêu cầu (10-20s)
+                wait_time = float(2 ** attempt)
+                if "429" in err_str or "rate limit" in err_str.lower() or status_code == 429:
+                    match = re.search(r"try again in (\d+(?:\.\d+)?)s", err_str, re.IGNORECASE)
+                    if match:
+                        wait_time = max(float(match.group(1)) + 1.0, 10.0)
+                    else:
+                        wait_time = max(wait_time, 10.0)
+
                 print(
                     f"[LLMClient] Cảnh báo lỗi API (Lần thử {attempt + 1}/{self.max_retries}): {err_detail}. "
-                    f"Đang tạm dừng {2 ** attempt}s trước khi thử lại..."
+                    f"Đang tạm dừng {wait_time:.1f}s trước khi thử lại..."
                 )
 
                 # Nếu đã thử đến lần cuối cùng mà vẫn lỗi thì ném exception ra ngoài
@@ -89,5 +115,5 @@ class RobustLLMClient:
                     print(f"[LLMClient] Đã thử lại tối đa {self.max_retries} lần nhưng vẫn thất bại.")
                     raise e
 
-                # Khi gặp lỗi mạng hoặc quá tải (rate limit), tạm dừng theo hàm số mũ rồi thử lại
-                time.sleep(2 ** attempt)
+                # Tạm dừng trước khi thử lại
+                time.sleep(wait_time)

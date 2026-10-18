@@ -264,7 +264,7 @@ def rag_pipeline(
     if client is not None:
         try:
             if client_type == "groq":
-                selected_model = model or "llama-3.3-70b-versatile"
+                selected_model = model or os.getenv("MODEL") or "qwen/qwen3.8-27b"
                 response = client.chat.completions.create(
                     model=selected_model,
                     messages=messages,
