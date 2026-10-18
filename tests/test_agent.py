@@ -125,10 +125,27 @@ def evaluate_single_query(test_item: Dict[str, Any], agent_response: Dict[str, A
             ]
             passed = any(kw in final_answer for kw in missing_keywords)
             details = "Nhận diện đúng việc thiếu dữ liệu" if passed else "Lỗi: Đưa ra kết luận khi thiếu dữ liệu"
+        elif item_type == "adversarial_fact_check":
+            # Đính chính ngộ nhận sai Điều hoặc đòi hỏi vô lý của sinh viên
+            correction_keywords = [
+                "không đúng", "không phải", "nhớ sai", "nhầm", "điều 10", "tiêu chí",
+                "không có quy định", "không được cộng", "bác bỏ", "phân loại", "không cộng"
+            ]
+            passed = any(kw in final_answer for kw in correction_keywords)
+            details = "Đính chính đúng thông tin ngộ nhận / sai lệch" if passed else "Lỗi: Đồng thuận hoặc không đính chính ngộ nhận của sinh viên"
+        elif item_type == "multi_doc_synthesis":
+            # Kết hợp Phụ lục 1 và Điều 11 (điều kiện ràng buộc GPA/kỷ luật)
+            constraint_keywords = [
+                "điều 11", "gpa", "2.0", "dưới 2.0", "khá", "kỷ luật", "chưa thể", "chưa chắc", "không được xếp loại"
+            ]
+            passed = any(kw in final_answer for kw in constraint_keywords)
+            details = "Tổng hợp đúng ràng buộc Điều 11 và Phụ lục 1" if passed else "Lỗi: Chưa chỉ ra ràng buộc hạn chế xếp loại ở Điều 11"
         else:
-            # So sánh xung đột giữa các phiên bản quy chế
-            passed = "2024" in final_answer or "mới nhất" in final_answer or "thay đổi" in final_answer
+            # So sánh xung đột giữa các phiên bản quy chế (policy_version_conflict)
+            conflict_keywords = ["2024", "mới nhất", "thay đổi", "nâng lên", "không nhầm", "hiện hành", "2022"]
+            passed = any(kw in final_answer for kw in conflict_keywords)
             details = "Xử lý đúng xung đột phiên bản quy chế" if passed else "Lỗi: Chưa chỉ ra xung đột quy chế"
+
 
     # Nhóm 4: Kiểm tra Tầng c - Tác vụ ghi có tác dụng phụ và bắt buộc xác minh (R-07)
     elif tier == "c_action":
@@ -343,6 +360,36 @@ def test_evaluate_calculation_with_cap_pass():
     }
     agent_response = {
         "final_answer": "Tổng điểm tích lũy của bạn sau khi áp mức trần tối đa là 15 điểm.",
+        "steps": [],
+    }
+    result = evaluate_single_query(test_item, agent_response)
+    assert result["passed"] is True
+
+
+def test_evaluate_adversarial_fact_check_pass():
+    """Kiểm thử Agent đính chính đúng khi sinh viên nhớ sai số Điều hoặc đòi cộng điểm sai."""
+    test_item = {
+        "id": "Q_ADV_01",
+        "tier": "b_transform",
+        "type": "adversarial_fact_check",
+    }
+    agent_response = {
+        "final_answer": "Thông tin bạn nhớ là không đúng. Điều 10 quy định về phân loại rèn luyện, còn hoạt động thể thao thuộc Tiêu chí III Phụ lục 1.",
+        "steps": [],
+    }
+    result = evaluate_single_query(test_item, agent_response)
+    assert result["passed"] is True
+
+
+def test_evaluate_multi_doc_synthesis_pass():
+    """Kiểm thử Agent tổng hợp đúng Điều 11 khống chế xếp loại rèn luyện theo GPA."""
+    test_item = {
+        "id": "Q_SYN_01",
+        "tier": "b_transform",
+        "type": "multi_doc_synthesis",
+    }
+    agent_response = {
+        "final_answer": "Theo Điều 11 của quy chế, nếu điểm trung bình chung GPA học kỳ dưới 2.0 thì điểm rèn luyện tối đa chỉ đạt loại Khá, dù tổng điểm có đạt 88 điểm.",
         "steps": [],
     }
     result = evaluate_single_query(test_item, agent_response)
